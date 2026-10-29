@@ -27,6 +27,8 @@ enum Snapshot {
                    appearance: appearance, to: directory.appendingPathComponent("discover-detail-\(name).png"))
             render(MenuView(initialTab: .discover, discoverSelection: sampleCatalog[2]), store: sampleStore(),
                    appearance: appearance, to: directory.appendingPathComponent("discover-installed-\(name).png"))
+            render(MenuView(initialTab: .installed, installedSelection: sampleCatalog[2]), store: sampleStore(),
+                   appearance: appearance, to: directory.appendingPathComponent("installed-detail-\(name).png"))
             render(MenuBarIconStrip(), store: sampleStore(), appearance: appearance,
                    to: directory.appendingPathComponent("icon-\(name).png"))
         }

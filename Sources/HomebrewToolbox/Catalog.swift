@@ -12,7 +12,8 @@ struct CatalogPackage: Identifiable, Hashable, Sendable {
     let license: String?
     let dependencies: [String]
     let caveats: String?
-    let tap: String
+    /// nil for installed packages missing from the catalog (third-party taps).
+    let tap: String?
     let deprecated: Bool
     let autoUpdates: Bool
 

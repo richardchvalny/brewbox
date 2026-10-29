@@ -11,7 +11,8 @@ outdated formulae and casks in the background and upgrades them with one click.
 - Per-package **Update** and **Update All**, queued so brew never runs twice at once
 - Live `brew upgrade` output
 - **Installed** tab: searchable list of everything installed, filter by formulae/casks,
-  dependencies hidden by default, update straight from the list
+  dependencies hidden by default, update straight from the list; open a package
+  for its details and to uninstall it (with confirmation)
 - **Discover** tab: instant search over the whole Homebrew catalog (formulae and casks),
   package detail with homepage and formulae.brew.sh links, one-click install
 - Pin / unpin formulae, open homepage (right-click a row)

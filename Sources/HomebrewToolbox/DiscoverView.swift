@@ -198,11 +198,15 @@ private struct DiscoverRow: View {
 struct PackageDetailView: View {
     @Environment(UpdateStore.self) private var store
     let package: CatalogPackage
+    var backTitle = "Results"
     let onBack: () -> Void
     @State private var copied = false
+    @State private var confirmingUninstall = false
 
     private var isInstalled: Bool { store.installedIDs.contains(package.id) }
     private var isInstalling: Bool { store.installing.contains(package.id) }
+    private var isUninstalling: Bool { store.uninstalling.contains(package.id) }
+    private var isUpgrading: Bool { store.upgrading.contains(package.id) }
     private var installedVersion: String? {
         store.installed.first { $0.id == package.id }?.version
     }
@@ -213,8 +217,8 @@ struct PackageDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
-                IconButton(systemImage: "chevron.left", help: "Back to results", action: onBack)
-                Text("Results")
+                IconButton(systemImage: "chevron.left", help: "Back", action: onBack)
+                Text(backTitle)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -304,11 +308,13 @@ struct PackageDetailView: View {
             if let license = package.license {
                 detailRow("License", license)
             }
-            detailRow("Tap", package.tap)
+            if let tap = package.tap {
+                detailRow("Tap", tap)
+            }
             if package.kind == .cask && package.autoUpdates {
                 detailRow("Updates", "Updates itself")
             }
-            if package.kind == .formula {
+            if package.kind == .formula && package.tap != nil {
                 detailRow("Dependencies", package.dependencies.isEmpty
                     ? "None"
                     : package.dependencies.joined(separator: ", "))
@@ -372,24 +378,23 @@ struct PackageDetailView: View {
     private var actionBar: some View {
         VStack(spacing: 8) {
             if isInstalling {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text(store.activity == "Installing \(package.title)…" ? "Installing…" : "Waiting for brew…")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                Text(lastLogLines)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                busy("Installing")
+            } else if isUninstalling {
+                busy("Uninstalling")
+            } else if isUpgrading {
+                busy("Upgrading")
+            } else if isInstalled && confirmingUninstall {
+                uninstallConfirmation
             } else if isInstalled {
-                HStack {
+                HStack(spacing: 8) {
                     Label("Installed", systemImage: "checkmark.circle.fill")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.green)
                     Spacer()
+                    Button("Uninstall") { confirmingUninstall = true }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.small)
                     if let outdated, !outdated.pinned {
                         Button("Update to \(displayVersion(outdated.currentVersion))") { store.upgrade(outdated) }
                             .buttonStyle(.borderedProminent)
@@ -411,6 +416,61 @@ struct PackageDetailView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+        .onChange(of: isInstalled) { confirmingUninstall = false }
+    }
+
+    /// Inline instead of an alert: alerts from a menu bar panel can open behind other windows.
+    private var uninstallConfirmation: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Uninstall \(package.title)?")
+                    .font(.system(size: 12, weight: .semibold))
+                Text(package.kind == .cask
+                    ? "Removes the app. Its settings and data stay on your Mac."
+                    : "Removes it from Homebrew. Your config files stay.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
+                Spacer()
+                Button("Cancel") { confirmingUninstall = false }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                    .keyboardShortcut(.cancelAction)
+                Button("Uninstall", role: .destructive) {
+                    confirmingUninstall = false
+                    store.uninstall(package)
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .tint(.red)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    /// Progress for an operation on this package, which may wait behind others in the queue.
+    private func busy(_ verb: String) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text(isActive(verb) ? "\(verb)…" : "Waiting for brew…")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            Text(lastLogLines)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.tertiary)
+                .lineLimit(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func isActive(_ verb: String) -> Bool {
+        guard let activity = store.activity else { return false }
+        return activity.hasPrefix("\(verb) \(package.title)…") || activity.hasPrefix("\(verb) \(package.name)…")
     }
 
     private var lastLogLines: String {

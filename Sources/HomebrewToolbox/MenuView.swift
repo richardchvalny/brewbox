@@ -7,6 +7,7 @@ struct MenuView: View {
     @State private var tab: Tab
     private let discoverQuery: String
     private let discoverSelection: CatalogPackage?
+    private let installedSelection: CatalogPackage?
 
     enum Tab {
         case updates
@@ -14,10 +15,16 @@ struct MenuView: View {
         case discover
     }
 
-    init(initialTab: Tab = .updates, discoverQuery: String = "", discoverSelection: CatalogPackage? = nil) {
+    init(
+        initialTab: Tab = .updates,
+        discoverQuery: String = "",
+        discoverSelection: CatalogPackage? = nil,
+        installedSelection: CatalogPackage? = nil
+    ) {
         _tab = State(initialValue: initialTab)
         self.discoverQuery = discoverQuery
         self.discoverSelection = discoverSelection
+        self.installedSelection = installedSelection
     }
 
     var body: some View {
@@ -45,7 +52,7 @@ struct MenuView: View {
             case .updates:
                 UpdatesList()
             case .installed:
-                InstalledListView()
+                InstalledListView(initialSelection: installedSelection)
             case .discover:
                 DiscoverView(initialQuery: discoverQuery, initialSelection: discoverSelection)
             }

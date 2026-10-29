@@ -30,6 +30,8 @@ final class UpdateStore {
     private(set) var catalogError: String?
     /// IDs of packages being installed or waiting in the queue.
     private(set) var installing: Set<String> = []
+    /// IDs of packages being uninstalled or waiting in the queue.
+    private(set) var uninstalling: Set<String> = []
     private let catalogService = CatalogService()
 
     var installedIDs: Set<String> { Set(installed.map(\.id)) }
@@ -156,6 +158,49 @@ final class UpdateStore {
             // Always reload so the new package shows as installed everywhere.
             try? await refreshInstalled(using: brew)
         }
+    }
+
+    /// brew refuses to remove a formula other installed formulae depend on; that
+    /// error is shown as-is.
+    func uninstall(_ package: CatalogPackage) {
+        guard let brew, !uninstalling.contains(package.id), installedIDs.contains(package.id) else { return }
+        uninstalling.insert(package.id)
+        let arguments = ["uninstall", package.kind == .cask ? "--cask" : "--formula", package.name]
+
+        enqueue { [self] in
+            defer { uninstalling.remove(package.id) }
+            activity = "Uninstalling \(package.title)…"
+            defer { activity = nil }
+            do {
+                try await runLogged(arguments, using: brew)
+                packages.removeAll { $0.id == package.id }
+            } catch {
+                errorMessage = failureMessage("Uninstalling \(package.title)", error)
+            }
+            try? await refreshInstalled(using: brew)
+        }
+    }
+
+    /// Detail data for an installed package: the catalog entry when there is one,
+    /// otherwise what `brew info` reported (packages from third-party taps).
+    func catalogPackage(for package: InstalledPackage) -> CatalogPackage {
+        if let entry = catalog.first(where: { $0.id == package.id }) {
+            return entry
+        }
+        return CatalogPackage(
+            name: package.name,
+            title: package.title,
+            kind: package.kind,
+            version: package.version,
+            summary: package.summary,
+            homepage: package.homepage,
+            license: nil,
+            dependencies: [],
+            caveats: nil,
+            tap: nil,
+            deprecated: false,
+            autoUpdates: false
+        )
     }
 
     /// Keeps the Installed tab current after upgrades, without loading it eagerly.

@@ -5,6 +5,11 @@ struct InstalledListView: View {
     @State private var searchText = ""
     @State private var kindFilter = KindFilter.all
     @AppStorage("showDependencies") private var showDependencies = false
+    @State private var selected: CatalogPackage?
+
+    init(initialSelection: CatalogPackage? = nil) {
+        _selected = State(initialValue: initialSelection)
+    }
 
     private enum KindFilter: String, CaseIterable {
         case all = "All"
@@ -32,16 +37,24 @@ struct InstalledListView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            toolbar
-            content
-                .frame(height: 380)
+        Group {
+            if let selected {
+                PackageDetailView(package: selected, backTitle: "Installed") { self.selected = nil }
+            } else {
+                VStack(spacing: 0) {
+                    toolbar
+                    content
+                        .frame(height: 380)
+                }
+            }
         }
         .task {
             if store.installed.isEmpty {
                 await store.loadInstalled()
             }
         }
+        // Details read licenses, dependencies and caveats from the catalog.
+        .task { await store.loadCatalog() }
     }
 
     private var toolbar: some View {
@@ -121,7 +134,9 @@ struct InstalledListView: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(filtered) { package in
-                        InstalledRow(package: package)
+                        InstalledRow(package: package) {
+                            selected = store.catalogPackage(for: package)
+                        }
                     }
                     footnote
                 }
@@ -151,6 +166,7 @@ private struct InstalledRow: View {
     @Environment(UpdateStore.self) private var store
     @Environment(\.openURL) private var openURL
     let package: InstalledPackage
+    let onSelect: () -> Void
 
     private var outdated: OutdatedPackage? {
         store.outdatedPackage(id: package.id).flatMap { $0.pinned ? nil : $0 }
@@ -194,15 +210,20 @@ private struct InstalledRow: View {
                 }
             }
             Spacer(minLength: 4)
-            if store.upgrading.contains(package.id) {
+            if store.upgrading.contains(package.id) || store.uninstalling.contains(package.id) {
                 ProgressView().controlSize(.small)
             } else if let outdated {
                 RowUpdateButton { store.upgrade(outdated) }
             }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.tertiary)
         }
         .rowHover()
+        .onTapGesture(perform: onSelect)
         .help(package.summary ?? package.name)
         .contextMenu {
+            Button("Show details", action: onSelect)
             if let homepage = package.homepage {
                 Button("Open homepage") { openURL(homepage) }
             }
