@@ -5,14 +5,19 @@ struct MenuView: View {
     @State private var showingSettings = false
     @State private var showingOutput = false
     @State private var tab: Tab
+    private let discoverQuery: String
+    private let discoverSelection: CatalogPackage?
 
     enum Tab {
         case updates
         case installed
+        case discover
     }
 
-    init(initialTab: Tab = .updates) {
+    init(initialTab: Tab = .updates, discoverQuery: String = "", discoverSelection: CatalogPackage? = nil) {
         _tab = State(initialValue: initialTab)
+        self.discoverQuery = discoverQuery
+        self.discoverSelection = discoverSelection
     }
 
     var body: some View {
@@ -41,6 +46,8 @@ struct MenuView: View {
                 UpdatesList()
             case .installed:
                 InstalledListView()
+            case .discover:
+                DiscoverView(initialQuery: discoverQuery, initialSelection: discoverSelection)
             }
             if showingOutput && !store.log.isEmpty {
                 Divider()
@@ -95,6 +102,9 @@ struct MenuView: View {
             }
             TabButton(title: "Installed", count: nil, isSelected: tab == .installed) {
                 tab = .installed
+            }
+            TabButton(title: "Discover", count: nil, isSelected: tab == .discover) {
+                tab = .discover
             }
             Spacer()
         }

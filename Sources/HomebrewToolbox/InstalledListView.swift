@@ -153,7 +153,7 @@ private struct InstalledRow: View {
     let package: InstalledPackage
 
     private var outdated: OutdatedPackage? {
-        store.outdatedPackage(for: package).flatMap { $0.pinned ? nil : $0 }
+        store.outdatedPackage(id: package.id).flatMap { $0.pinned ? nil : $0 }
     }
 
     var body: some View {

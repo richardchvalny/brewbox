@@ -24,6 +24,16 @@ final class UpdateStore {
     private(set) var installed: [InstalledPackage] = []
     private(set) var isLoadingInstalled = false
 
+    /// The full Homebrew catalog for discovering new packages; loaded on demand.
+    private(set) var catalog: [CatalogPackage] = []
+    private(set) var isLoadingCatalog = false
+    private(set) var catalogError: String?
+    /// IDs of packages being installed or waiting in the queue.
+    private(set) var installing: Set<String> = []
+    private let catalogService = CatalogService()
+
+    var installedIDs: Set<String> { Set(installed.map(\.id)) }
+
     let brew: BrewService?
 
     var updatableCount: Int { packages.filter { !$0.pinned }.count }
@@ -44,10 +54,11 @@ final class UpdateStore {
     }
 
     /// Static store for snapshots: no brew, no scheduler.
-    init(preview packages: [OutdatedPackage], installed: [InstalledPackage], log: String = "") {
+    init(preview packages: [OutdatedPackage], installed: [InstalledPackage], catalog: [CatalogPackage] = [], log: String = "") {
         brew = BrewService(brewURL: URL(fileURLWithPath: "/opt/homebrew/bin/brew"))
         self.packages = packages
         self.installed = installed
+        self.catalog = catalog
         self.log = log
         lastChecked = .now.addingTimeInterval(-12 * 60)
     }
@@ -91,8 +102,8 @@ final class UpdateStore {
         packages = result
     }
 
-    func outdatedPackage(for package: InstalledPackage) -> OutdatedPackage? {
-        packages.first { $0.id == package.id }
+    func outdatedPackage(id: String) -> OutdatedPackage? {
+        packages.first { $0.id == id }
     }
 
     // MARK: - Installed packages
@@ -112,6 +123,39 @@ final class UpdateStore {
 
     private func refreshInstalled(using brew: BrewService) async throws {
         installed = try InstalledPackage.parse(try await brew.run(["info", "--json=v2", "--installed"]))
+    }
+
+    // MARK: - Discovering and installing
+
+    func loadCatalog(forceRefresh: Bool = false) async {
+        guard !isLoadingCatalog, catalog.isEmpty || forceRefresh else { return }
+        isLoadingCatalog = true
+        defer { isLoadingCatalog = false }
+        do {
+            catalog = try await catalogService.load(forceRefresh: forceRefresh)
+            catalogError = nil
+        } catch {
+            catalogError = "Couldn't load the Homebrew catalog. Check your connection and try again."
+        }
+    }
+
+    func install(_ package: CatalogPackage) {
+        guard let brew, !installing.contains(package.id), !installedIDs.contains(package.id) else { return }
+        installing.insert(package.id)
+        let arguments = ["install", package.kind == .cask ? "--cask" : "--formula", package.name]
+
+        enqueue { [self] in
+            defer { installing.remove(package.id) }
+            activity = "Installing \(package.title)…"
+            defer { activity = nil }
+            do {
+                try await runLogged(arguments, using: brew)
+            } catch {
+                errorMessage = failureMessage("Installing \(package.title)", error)
+            }
+            // Always reload so the new package shows as installed everywhere.
+            try? await refreshInstalled(using: brew)
+        }
     }
 
     /// Keeps the Installed tab current after upgrades, without loading it eagerly.
@@ -154,7 +198,7 @@ final class UpdateStore {
                 try await runLogged(arguments, using: brew)
                 packages.removeAll { $0.id == package.id }
             } catch {
-                errorMessage = upgradeFailureMessage(package.name, error)
+                errorMessage = failureMessage("Upgrading \(package.name)", error)
             }
             await refreshInstalledIfLoaded(using: brew)
         }
@@ -177,7 +221,7 @@ final class UpdateStore {
             do {
                 try await runLogged(arguments, using: brew)
             } catch {
-                errorMessage = upgradeFailureMessage(nil, error)
+                errorMessage = failureMessage("Upgrade", error)
             }
             // Some packages may have failed; ask brew what's left.
             try? await refreshOutdated(using: brew)
@@ -199,11 +243,10 @@ final class UpdateStore {
         }
     }
 
-    private func upgradeFailureMessage(_ name: String?, _ error: Error) -> String {
-        let subject = name.map { "Upgrading \($0)" } ?? "Upgrade"
+    private func failureMessage(_ subject: String, _ error: Error) -> String {
         var message = "\(subject) failed: \(error.localizedDescription)"
         if error.localizedDescription.contains("sudo") || error.localizedDescription.contains("password") {
-            message += "\nThis package needs an administrator password — run the upgrade in Terminal."
+            message += "\nThis package needs an administrator password, so run the command in Terminal."
         }
         return message
     }

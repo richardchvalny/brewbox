@@ -12,6 +12,8 @@ outdated formulae and casks in the background and upgrades them with one click.
 - Live `brew upgrade` output
 - **Installed** tab: searchable list of everything installed, filter by formulae/casks,
   dependencies hidden by default, update straight from the list
+- **Discover** tab: instant search over the whole Homebrew catalog (formulae and casks),
+  package detail with homepage and formulae.brew.sh links, one-click install
 - Pin / unpin formulae, open homepage (right-click a row)
 - Notifications for new updates, launch at login
 - Optional: include self-updating casks (`--greedy`)
@@ -42,6 +44,8 @@ Notifications and launch at login only work from the bundled app.
 | `UpdateStore.swift` | State, scheduler, serial command queue, notifications |
 | `MenuView.swift` | The menu bar panel and Updates tab |
 | `InstalledListView.swift` | Installed tab with search and filters |
+| `Catalog.swift` | Downloads and caches the formulae.brew.sh catalog, ranks search results |
+| `DiscoverView.swift` | Discover tab, package detail and install |
 | `SettingsView.swift` | In-panel settings |
 
 ## Known limitations

@@ -19,6 +19,14 @@ enum Snapshot {
                    to: directory.appendingPathComponent("installed-\(name).png"))
             render(MenuView(initialTab: .updates), store: UpdateStore(preview: [], installed: sampleInstalled),
                    appearance: appearance, to: directory.appendingPathComponent("empty-\(name).png"))
+            render(MenuView(initialTab: .discover), store: sampleStore(), appearance: appearance,
+                   to: directory.appendingPathComponent("discover-empty-\(name).png"))
+            render(MenuView(initialTab: .discover, discoverQuery: "ra"), store: sampleStore(), appearance: appearance,
+                   to: directory.appendingPathComponent("discover-results-\(name).png"))
+            render(MenuView(initialTab: .discover, discoverSelection: sampleCatalog[0]), store: sampleStore(),
+                   appearance: appearance, to: directory.appendingPathComponent("discover-detail-\(name).png"))
+            render(MenuView(initialTab: .discover, discoverSelection: sampleCatalog[2]), store: sampleStore(),
+                   appearance: appearance, to: directory.appendingPathComponent("discover-installed-\(name).png"))
             render(MenuBarIconStrip(), store: sampleStore(), appearance: appearance,
                    to: directory.appendingPathComponent("icon-\(name).png"))
         }
@@ -59,9 +67,30 @@ enum Snapshot {
                 OutdatedPackage(name: "slack", kind: .cask, installedVersion: "4.53.269", currentVersion: "4.54.102", pinned: false),
             ],
             installed: sampleInstalled,
+            catalog: sampleCatalog,
             log: "$ brew upgrade --formula gh\n==> Upgrading gh\n  2.103.3 -> 2.104.0\n==> Pouring gh--2.104.0.arm64_tahoe.bottle.tar.gz\n🍺  /opt/homebrew/Cellar/gh/2.104.0: 221 files, 58.1MB\n"
         )
     }
+
+    private static let sampleCatalog: [CatalogPackage] = [
+        .init(name: "ripgrep", title: "ripgrep", kind: .formula, version: "15.1.0",
+              summary: "Search tool like grep and The Silver Searcher",
+              homepage: URL(string: "https://github.com/BurntSushi/ripgrep"), license: "Unlicense OR MIT",
+              dependencies: ["pcre2"], caveats: nil, tap: "homebrew/core", deprecated: false, autoUpdates: false),
+        .init(name: "rar", title: "RAR Archiver", kind: .cask, version: "7.13",
+              summary: "Archive manager for data compression and backups",
+              homepage: URL(string: "https://www.rarlab.com/"), license: nil, dependencies: [],
+              caveats: nil, tap: "homebrew/cask", deprecated: false, autoUpdates: false),
+        .init(name: "raycast", title: "Raycast", kind: .cask, version: "2.11.0",
+              summary: "Control your tools with a few keystrokes",
+              homepage: URL(string: "https://raycast.com/"), license: nil, dependencies: [],
+              caveats: nil, tap: "homebrew/cask", deprecated: false, autoUpdates: true),
+        .init(name: "rabbitmq", title: "rabbitmq", kind: .formula, version: "4.2.0",
+              summary: "Messaging and streaming broker",
+              homepage: URL(string: "https://www.rabbitmq.com"), license: "MPL-2.0",
+              dependencies: ["erlang"], caveats: "Management UI: http://localhost:15672", tap: "homebrew/core",
+              deprecated: false, autoUpdates: false),
+    ]
 
     private static let sampleInstalled: [InstalledPackage] = [
         .init(name: "claude-code", title: "Claude Code", kind: .cask, version: "2.1.308", summary: "Terminal-based AI coding assistant", homepage: nil, pinned: false, installedOnRequest: true),
