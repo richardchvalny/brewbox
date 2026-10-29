@@ -29,6 +29,8 @@ enum Snapshot {
                    appearance: appearance, to: directory.appendingPathComponent("discover-installed-\(name).png"))
             render(MenuView(initialTab: .installed, installedSelection: sampleCatalog[2]), store: sampleStore(),
                    appearance: appearance, to: directory.appendingPathComponent("installed-detail-\(name).png"))
+            render(MenuView(initialTab: .updates), store: errorStore(), appearance: appearance,
+                   to: directory.appendingPathComponent("error-\(name).png"))
             render(MenuBarIconStrip(), store: sampleStore(), appearance: appearance,
                    to: directory.appendingPathComponent("icon-\(name).png"))
         }
@@ -72,6 +74,23 @@ enum Snapshot {
             catalog: sampleCatalog,
             log: "$ brew upgrade --formula gh\n==> Upgrading gh\n  2.103.3 -> 2.104.0\n==> Pouring gh--2.104.0.arm64_tahoe.bottle.tar.gz\n🍺  /opt/homebrew/Cellar/gh/2.104.0: 221 files, 58.1MB\n"
         )
+    }
+
+    /// Mirrors what `brew install --formula homebrew-toolbox-simulated-error` really prints.
+    private static func errorStore() -> UpdateStore {
+        let message = """
+            Warning: No available formula with the name "homebrew-toolbox-simulated-error".
+            Error: No formulae found for homebrew-toolbox-simulated-error.
+            """
+        let error = BrewError(
+            message: message,
+            command: "brew install --formula homebrew-toolbox-simulated-error",
+            exitCode: 1,
+            output: message + "\n==> Searching for similarly named formulae..."
+        )
+        let store = sampleStore()
+        store.error = ErrorReport(title: "Installing homebrew-toolbox-simulated-error failed (simulated)", error: error)
+        return store
     }
 
     private static let sampleCatalog: [CatalogPackage] = [

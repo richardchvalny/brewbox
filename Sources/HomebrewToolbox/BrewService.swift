@@ -1,7 +1,14 @@
 import Foundation
 
 struct BrewError: LocalizedError {
+    /// The last few stderr lines, short enough for the panel.
     let message: String
+    /// The full command line, when the error came from running brew.
+    var command: String?
+    var exitCode: Int32?
+    /// Everything brew printed, stdout and stderr in arrival order (capped).
+    var output: String?
+
     var errorDescription: String? { message }
 }
 
@@ -46,6 +53,7 @@ struct BrewService: Sendable {
 
         let stdout = DataBuffer()
         let stderr = DataBuffer()
+        let combined = DataBuffer()
         let group = DispatchGroup()
 
         for (pipe, buffer) in [(stdoutPipe, stdout), (stderrPipe, stderr)] {
@@ -58,6 +66,7 @@ struct BrewService: Sendable {
                     return
                 }
                 buffer.append(data)
+                combined.append(data)
                 if let onOutput, let text = String(data: data, encoding: .utf8) {
                     onOutput(text)
                 }
@@ -86,7 +95,16 @@ struct BrewService: Sendable {
                     let summary = errorText.isEmpty
                         ? "brew \(arguments.joined(separator: " ")) failed (exit \(process.terminationStatus))"
                         : errorText
-                    continuation.resume(throwing: BrewError(message: summary))
+                    let fullOutput = String(decoding: combined.data, as: UTF8.self)
+                        .split(separator: "\n", omittingEmptySubsequences: false)
+                        .suffix(150)
+                        .joined(separator: "\n")
+                    continuation.resume(throwing: BrewError(
+                        message: summary,
+                        command: (["brew"] + arguments).joined(separator: " "),
+                        exitCode: process.terminationStatus,
+                        output: fullOutput
+                    ))
                     return
                 }
                 continuation.resume(returning: output)

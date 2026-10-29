@@ -59,6 +59,24 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                Section {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Simulate an error")
+                            Text("Runs a brew command that fails on purpose, so you can try the error banner.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Run") {
+                            store.simulateError()
+                            onBack()
+                        }
+                    }
+                } header: {
+                    Text("Troubleshooting")
+                }
             }
             .formStyle(.grouped)
             .toggleStyle(.switch)
@@ -83,7 +101,7 @@ struct SettingsView: View {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
-            store.errorMessage = "Couldn't change launch at login: \(error.localizedDescription)"
+            store.error = ErrorReport(title: "Couldn't change launch at login", error: error)
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
     }

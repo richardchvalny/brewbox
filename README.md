@@ -16,6 +16,9 @@ outdated formulae and casks in the background and upgrades them with one click.
 - **Discover** tab: instant search over the whole Homebrew catalog (formulae and casks),
   package detail with homepage and formulae.brew.sh links, one-click install
 - Pin / unpin formulae, open homepage (right-click a row)
+- Errors show the failing command and can be copied as plain text or as a ready-made
+  prompt for an AI agent (with full output and your macOS/Homebrew versions);
+  Settings → Troubleshooting → Simulate an error lets you try it safely
 - Notifications for new updates, launch at login
 - Optional: include self-updating casks (`--greedy`)
 
@@ -47,6 +50,7 @@ Notifications and launch at login only work from the bundled app.
 | `InstalledListView.swift` | Installed tab with search and filters |
 | `Catalog.swift` | Downloads and caches the formulae.brew.sh catalog, ranks search results |
 | `DiscoverView.swift` | Discover tab, package detail and install |
+| `ErrorReport.swift` | Error context and the copy-for-AI prompt |
 | `SettingsView.swift` | In-panel settings |
 
 ## Known limitations

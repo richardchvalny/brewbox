@@ -18,7 +18,14 @@ final class UpdateStore {
     private(set) var iconFrame: Int?
     private var animationTask: Task<Void, Never>?
     private(set) var log = ""
-    var errorMessage: String?
+    /// The latest failure, shown as a banner until dismissed.
+    var error: ErrorReport?
+    /// `brew --version`, for error reports.
+    private(set) var brewVersion: String?
+
+    var systemInfo: SystemInfo {
+        SystemInfo(brewVersion: brewVersion, brewPath: brew?.brewURL.path)
+    }
 
     /// Everything installed; empty until the Installed tab is first opened.
     private(set) var installed: [InstalledPackage] = []
@@ -49,15 +56,32 @@ final class UpdateStore {
 
     init() {
         brew = BrewService.locate()
-        if brew == nil {
-            errorMessage = "Homebrew wasn't found in /opt/homebrew or /usr/local."
+        if let brew {
+            Task { [weak self] in
+                let version = try? await brew.run(["--version"])
+                self?.brewVersion = version?.split(separator: "\n").first.map(String.init)
+            }
+        } else {
+            error = ErrorReport(
+                title: "Homebrew not found",
+                message: "Homebrew wasn't found in /opt/homebrew or /usr/local.",
+                hint: "Install it from brew.sh, then reopen the app."
+            )
         }
         startScheduler()
     }
 
     /// Static store for snapshots: no brew, no scheduler.
-    init(preview packages: [OutdatedPackage], installed: [InstalledPackage], catalog: [CatalogPackage] = [], log: String = "") {
+    init(
+        preview packages: [OutdatedPackage],
+        installed: [InstalledPackage],
+        catalog: [CatalogPackage] = [],
+        log: String = "",
+        error: ErrorReport? = nil
+    ) {
         brew = BrewService(brewURL: URL(fileURLWithPath: "/opt/homebrew/bin/brew"))
+        self.error = error
+        brewVersion = "Homebrew 7.0.11"
         self.packages = packages
         self.installed = installed
         self.catalog = catalog
@@ -75,21 +99,21 @@ final class UpdateStore {
             activity = "Checking for updates…"
             defer { activity = nil }
 
-            var updateError: String?
+            var updateError: ErrorReport?
             do {
                 try await brew.run(["update"])
             } catch {
                 // Offline or a broken tap: still report what brew already knows.
-                updateError = "brew update failed: \(error.localizedDescription)"
+                updateError = ErrorReport(title: "Couldn't update Homebrew", error: error)
             }
 
             do {
                 try await refreshOutdated(using: brew)
                 lastChecked = .now
-                errorMessage = updateError
+                self.error = updateError
                 notifyAboutNewUpdates()
             } catch {
-                errorMessage = error.localizedDescription
+                self.error = ErrorReport(title: "Couldn't check for updates", error: error)
             }
         }.value
     }
@@ -118,7 +142,7 @@ final class UpdateStore {
             do {
                 try await refreshInstalled(using: brew)
             } catch {
-                errorMessage = "Couldn't list installed packages: \(error.localizedDescription)"
+                self.error = ErrorReport(title: "Couldn't list installed packages", error: error)
             }
         }.value
     }
@@ -153,7 +177,7 @@ final class UpdateStore {
             do {
                 try await runLogged(arguments, using: brew)
             } catch {
-                errorMessage = failureMessage("Installing \(package.title)", error)
+                self.error = ErrorReport(title: "Installing \(package.title) failed", error: error)
             }
             // Always reload so the new package shows as installed everywhere.
             try? await refreshInstalled(using: brew)
@@ -175,7 +199,7 @@ final class UpdateStore {
                 try await runLogged(arguments, using: brew)
                 packages.removeAll { $0.id == package.id }
             } catch {
-                errorMessage = failureMessage("Uninstalling \(package.title)", error)
+                self.error = ErrorReport(title: "Uninstalling \(package.title) failed", error: error)
             }
             try? await refreshInstalled(using: brew)
         }
@@ -243,7 +267,7 @@ final class UpdateStore {
                 try await runLogged(arguments, using: brew)
                 packages.removeAll { $0.id == package.id }
             } catch {
-                errorMessage = failureMessage("Upgrading \(package.name)", error)
+                self.error = ErrorReport(title: "Upgrading \(package.name) failed", error: error)
             }
             await refreshInstalledIfLoaded(using: brew)
         }
@@ -266,7 +290,7 @@ final class UpdateStore {
             do {
                 try await runLogged(arguments, using: brew)
             } catch {
-                errorMessage = failureMessage("Upgrade", error)
+                self.error = ErrorReport(title: "Upgrading packages failed", error: error)
             }
             // Some packages may have failed; ask brew what's left.
             try? await refreshOutdated(using: brew)
@@ -283,17 +307,25 @@ final class UpdateStore {
                 try await refreshOutdated(using: brew)
                 await refreshInstalledIfLoaded(using: brew)
             } catch {
-                errorMessage = error.localizedDescription
+                self.error = ErrorReport(title: isPinned ? "Unpinning \(name) failed" : "Pinning \(name) failed", error: error)
             }
         }
     }
 
-    private func failureMessage(_ subject: String, _ error: Error) -> String {
-        var message = "\(subject) failed: \(error.localizedDescription)"
-        if error.localizedDescription.contains("sudo") || error.localizedDescription.contains("password") {
-            message += "\nThis package needs an administrator password, so run the command in Terminal."
+    /// Runs a brew command that fails on purpose (installing a package that doesn't
+    /// exist), so the error banner and its copy actions can be tried safely.
+    func simulateError() {
+        guard let brew else { return }
+        let name = "homebrew-toolbox-simulated-error"
+        enqueue { [self] in
+            activity = "Installing \(name)…"
+            defer { activity = nil }
+            do {
+                try await runLogged(["install", "--formula", name], using: brew)
+            } catch {
+                self.error = ErrorReport(title: "Installing \(name) failed (simulated)", error: error)
+            }
         }
-        return message
     }
 
     // MARK: - Helpers

@@ -41,8 +41,8 @@ struct MenuView: View {
     private var mainContent: some View {
         VStack(spacing: 0) {
             header
-            if let error = store.errorMessage {
-                ErrorBanner(message: error) { store.errorMessage = nil }
+            if let error = store.error {
+                ErrorBanner(report: error, systemInfo: store.systemInfo) { store.error = nil }
                     .padding(.horizontal, 12)
                     .padding(.bottom, 8)
             }
@@ -297,28 +297,80 @@ private struct UpdateRow: View {
 }
 
 private struct ErrorBanner: View {
-    let message: String
+    let report: ErrorReport
+    let systemInfo: SystemInfo
     let onDismiss: () -> Void
+    @State private var copied: CopyKind?
+
+    private enum CopyKind {
+        case prompt
+        case error
+    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(.orange)
-            Text(message)
-                .font(.system(size: 11))
-                .textSelection(.enabled)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(report.title)
+                        .font(.system(size: 11, weight: .semibold))
+                    Text(report.message)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                        .textSelection(.enabled)
+                    if let hint = report.hint {
+                        Text(hint)
+                            .font(.system(size: 11))
+                    }
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Dismiss")
             }
-            .buttonStyle(.plain)
-            .help("Dismiss")
+            HStack(spacing: 6) {
+                copyButton(.prompt, title: "Copy prompt for AI", systemImage: "sparkles") {
+                    report.agentPrompt(environment: systemInfo)
+                }
+                .help("Copies the error with its command, output, and your setup, framed as a prompt for an AI agent")
+                copyButton(.error, title: "Copy error", systemImage: "doc.on.doc") {
+                    report.plainText(environment: systemInfo)
+                }
+            }
+            .padding(.leading, 19)
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.orange.opacity(0.1)))
+    }
+
+    private func copyButton(
+        _ kind: CopyKind,
+        title: String,
+        systemImage: String,
+        text: @escaping () -> String
+    ) -> some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text(), forType: .string)
+            copied = kind
+            Task {
+                try? await Task.sleep(for: .seconds(1.5))
+                if copied == kind { copied = nil }
+            }
+        } label: {
+            Label(copied == kind ? "Copied" : title, systemImage: copied == kind ? "checkmark" : systemImage)
+                .font(.system(size: 11, weight: .medium))
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
     }
 }
 
