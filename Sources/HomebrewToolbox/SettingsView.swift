@@ -9,56 +9,62 @@ struct SettingsView: View {
     @AppStorage(Preferences.Key.includeCasks) private var includeCasks = true
     @AppStorage(Preferences.Key.greedy) private var greedy = false
     @AppStorage(Preferences.Key.notifications) private var notifications = true
+    @AppStorage(Preferences.Key.showCountInMenuBar) private var showCountInMenuBar = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     private let intervals = [1, 2, 4, 8, 12, 24]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Button(action: onBack) {
-                    Label("Back", systemImage: "chevron.left")
-                }
-                .buttonStyle(.borderless)
+            HStack(spacing: 6) {
+                IconButton(systemImage: "chevron.left", help: "Back", action: onBack)
+                Text("Settings")
+                    .font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Text("Settings").font(.headline)
-                Spacer()
-                // Balances the Back button so the title stays centered.
-                Label("Back", systemImage: "chevron.left").hidden()
             }
-            .padding(12)
-            Divider()
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
 
             Form {
-                Picker("Check every", selection: $checkIntervalHours) {
-                    ForEach(intervals, id: \.self) { hours in
-                        Text(hours == 1 ? "1 hour" : "\(hours) hours").tag(hours)
+                Section("Updates") {
+                    Picker("Check every", selection: $checkIntervalHours) {
+                        ForEach(intervals, id: \.self) { hours in
+                            Text(hours == 1 ? "1 hour" : "\(hours) hours").tag(hours)
+                        }
                     }
+                    Toggle("Include casks (apps)", isOn: $includeCasks)
+                    Toggle(isOn: $greedy) {
+                        Text("Include self-updating casks")
+                        Text("Apps that update themselves or use version :latest")
+                    }
+                    .disabled(!includeCasks)
                 }
 
-                Toggle("Include casks (apps)", isOn: $includeCasks)
-                Toggle(isOn: $greedy) {
-                    Text("Include self-updating casks")
-                    Text("Casks with auto_updates or version :latest")
-                }
-                .disabled(!includeCasks)
-
-                Toggle("Notify about new updates", isOn: $notifications)
-                    .disabled(!Preferences.isBundled)
-                Toggle("Launch at login", isOn: $launchAtLogin)
-                    .disabled(!Preferences.isBundled)
-                    .onChange(of: launchAtLogin) { _, enabled in
-                        setLaunchAtLogin(enabled)
+                Section {
+                    Toggle("Show update count", isOn: $showCountInMenuBar)
+                    Toggle("Notify about new updates", isOn: $notifications)
+                        .disabled(!Preferences.isBundled)
+                    Toggle("Launch at login", isOn: $launchAtLogin)
+                        .disabled(!Preferences.isBundled)
+                        .onChange(of: launchAtLogin) { _, enabled in
+                            setLaunchAtLogin(enabled)
+                        }
+                } header: {
+                    Text("Menu bar")
+                } footer: {
+                    if !Preferences.isBundled {
+                        Text("Notifications and launch at login need the bundled app (make app).")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
                     }
-
-                if !Preferences.isBundled {
-                    Text("Notifications and launch at login need the bundled app (make app).")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
+            .toggleStyle(.switch)
+            .controlSize(.small)
             .scrollDisabled(true)
+            .scrollContentBackground(.hidden)
             .fixedSize(horizontal: false, vertical: true)
             .onChange(of: includeCasks) { refresh() }
             .onChange(of: greedy) { refresh() }

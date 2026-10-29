@@ -3,11 +3,16 @@ import SwiftUI
 struct MenuView: View {
     @Environment(UpdateStore.self) private var store
     @State private var showingSettings = false
-    @State private var tab = Tab.updates
+    @State private var showingOutput = false
+    @State private var tab: Tab
 
-    private enum Tab {
+    enum Tab {
         case updates
         case installed
+    }
+
+    init(initialTab: Tab = .updates) {
+        _tab = State(initialValue: initialTab)
     }
 
     var body: some View {
@@ -18,33 +23,26 @@ struct MenuView: View {
                 mainContent
             }
         }
-        .frame(width: 360)
+        .frame(width: 340)
     }
 
     private var mainContent: some View {
         VStack(spacing: 0) {
             header
-            Divider()
             if let error = store.errorMessage {
                 ErrorBanner(message: error) { store.errorMessage = nil }
-                Divider()
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
             }
-            Picker("View", selection: $tab) {
-                Text(store.updatableCount > 0 ? "Updates (\(store.updatableCount))" : "Updates")
-                    .tag(Tab.updates)
-                Text("Installed").tag(Tab.installed)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            tabBar
+            Divider()
             switch tab {
             case .updates:
-                packageList
+                UpdatesList()
             case .installed:
                 InstalledListView()
             }
-            if !store.log.isEmpty {
+            if showingOutput && !store.log.isEmpty {
                 Divider()
                 OutputView()
             }
@@ -55,44 +53,34 @@ struct MenuView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: "shippingbox.fill")
-                .font(.title2)
-                .foregroundStyle(.orange)
+            Image(nsImage: BubblesIcon.image(hasUpdates: false, frame: store.iconFrame, size: 24))
+                .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Homebrew").font(.headline)
+                Text("Homebrew")
+                    .font(.system(size: 13, weight: .semibold))
                 statusLine
-                    .font(.caption)
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer()
-            Button {
+            IconButton(systemImage: "arrow.clockwise", help: "Check for updates") {
                 Task { await store.check() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
             }
-            .buttonStyle(.borderless)
             .disabled(store.isChecking || store.brew == nil)
-            .help("Check for updates")
-
-            Button {
+            IconButton(systemImage: "gearshape", help: "Settings") {
                 showingSettings = true
-            } label: {
-                Image(systemName: "gearshape")
             }
-            .buttonStyle(.borderless)
-            .help("Settings")
         }
-        .padding(12)
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
     }
 
     @ViewBuilder
     private var statusLine: some View {
         if let activity = store.activity {
-            HStack(spacing: 4) {
-                ProgressView().controlSize(.mini)
-                Text(activity)
-            }
+            Text(activity)
         } else if let lastChecked = store.lastChecked {
             Text("Checked \(lastChecked.formatted(.relative(presentation: .named)))")
         } else {
@@ -100,100 +88,175 @@ struct MenuView: View {
         }
     }
 
-    @ViewBuilder
-    private var packageList: some View {
-        if store.packages.isEmpty {
-            VStack(spacing: 6) {
-                Image(systemName: store.lastChecked == nil ? "hourglass" : "checkmark.circle")
-                    .font(.largeTitle)
-                    .foregroundStyle(store.lastChecked == nil ? Color.secondary : Color.green)
-                Text(store.lastChecked == nil ? "Looking for updates…" : "Everything is up to date")
-                    .foregroundStyle(.secondary)
+    private var tabBar: some View {
+        HStack(spacing: 2) {
+            TabButton(title: "Updates", count: store.updatableCount, isSelected: tab == .updates) {
+                tab = .updates
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 28)
+            TabButton(title: "Installed", count: nil, isSelected: tab == .installed) {
+                tab = .installed
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+    }
+
+    private var footer: some View {
+        HStack {
+            if !store.log.isEmpty {
+                Button {
+                    showingOutput.toggle()
+                } label: {
+                    Label(showingOutput ? "Hide output" : "Show output", systemImage: "terminal")
+                }
+            }
+            Spacer()
+            Button("Quit") { NSApplication.shared.terminate(nil) }
+                .keyboardShortcut("q")
+        }
+        .buttonStyle(.plain)
+        .font(.system(size: 11))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+    }
+}
+
+private struct TabButton: View {
+    let title: String
+    let count: Int?
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Text(title)
+                if let count, count > 0 {
+                    Text("\(count)")
+                        .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.accentColor.opacity(0.18)))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+            .foregroundStyle(isSelected ? .primary : .secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(.primary.opacity(isSelected ? 0.08 : (isHovered ? 0.04 : 0)))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+}
+
+private struct UpdatesList: View {
+    @Environment(UpdateStore.self) private var store
+
+    /// Pinned packages can't be upgraded, so they sit at the bottom.
+    private var sortedPackages: [OutdatedPackage] {
+        store.packages.filter { !$0.pinned } + store.packages.filter(\.pinned)
+    }
+
+    private var pinnedCount: Int { store.packages.count - store.updatableCount }
+
+    var body: some View {
+        if store.packages.isEmpty {
+            emptyState
         } else {
             VStack(spacing: 0) {
-                HStack {
-                    Text("Updates available")
-                        .font(.subheadline.weight(.semibold))
-                    Text("\(store.updatableCount)")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 1)
-                        .background(.orange.opacity(0.2), in: Capsule())
-                    Spacer()
-                    Button("Update All") { store.upgradeAll() }
-                        .controlSize(.small)
-                        .disabled(store.updatableCount == 0
-                            || store.packages.allSatisfy { $0.pinned || store.upgrading.contains($0.id) })
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-
+                summary
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(store.packages) { package in
-                            PackageRow(package: package)
+                        ForEach(sortedPackages) { package in
+                            UpdateRow(package: package)
                         }
                     }
+                    .padding(.bottom, 6)
                 }
-                .frame(maxHeight: 340)
+                .frame(maxHeight: 360)
                 .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    private var footer: some View {
+    private var summary: some View {
         HStack {
-            if let brew = store.brew {
-                Text(brew.brewURL.path)
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.tertiary)
-            }
+            Text(summaryText)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
             Spacer()
-            Button("Quit") { NSApplication.shared.terminate(nil) }
-                .buttonStyle(.borderless)
-                .keyboardShortcut("q")
+            if store.updatableCount > 0 {
+                Button("Update all") { store.upgradeAll() }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                    .disabled(store.packages.allSatisfy { $0.pinned || store.upgrading.contains($0.id) })
+            }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 4)
+    }
+
+    private var summaryText: String {
+        let updates = store.updatableCount == 1 ? "1 update" : "\(store.updatableCount) updates"
+        return pinnedCount > 0 ? "\(updates) · \(pinnedCount) pinned" : updates
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 6) {
+            Image(nsImage: BubblesIcon.image(hasUpdates: false, frame: store.iconFrame, size: 40))
+                .foregroundStyle(.tertiary)
+                .padding(.bottom, 4)
+            Text(store.lastChecked == nil ? "Checking for updates…" : "You're up to date")
+                .font(.system(size: 13, weight: .medium))
+            if let lastChecked = store.lastChecked {
+                Text("Checked \(lastChecked.formatted(.relative(presentation: .named)))")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 36)
     }
 }
 
-private struct PackageRow: View {
+private struct UpdateRow: View {
     @Environment(UpdateStore.self) private var store
     let package: OutdatedPackage
 
     var body: some View {
         HStack(spacing: 10) {
-            PackageIcon(kind: package.kind)
             VStack(alignment: .leading, spacing: 2) {
-                Text(package.name)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                HStack(spacing: 4) {
-                    Text(displayVersion(package.installedVersion))
-                    Image(systemName: "arrow.right").font(.caption2)
-                    Text(displayVersion(package.currentVersion))
+                HStack(spacing: 5) {
+                    Text(package.name)
+                        .font(.system(size: 13, weight: .medium))
+                        .lineLimit(1)
+                    KindGlyph(kind: package.kind)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+                VersionChange(from: package.installedVersion, to: package.currentVersion)
             }
+            .opacity(package.pinned ? 0.55 : 1)
             Spacer()
             trailing
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
+        .rowHover()
         .contextMenu {
             if package.kind == .formula {
-                Button(package.pinned ? "Unpin" : "Pin Current Version") {
+                Button(package.pinned ? "Unpin" : "Pin current version") {
                     store.togglePin(name: package.name, isPinned: package.pinned)
                 }
             }
-            Button("Copy Upgrade Command") {
+            Button("Copy upgrade command") {
                 let flag = package.kind == .cask ? " --cask" : ""
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString("brew upgrade\(flag) \(package.name)", forType: .string)
@@ -204,26 +267,15 @@ private struct PackageRow: View {
     @ViewBuilder
     private var trailing: some View {
         if package.pinned {
-            Image(systemName: "pin.fill")
-                .foregroundStyle(.secondary)
-                .help("Pinned — brew won't upgrade it")
+            Label("Pinned", systemImage: "pin.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+                .help("Pinned, so brew won't upgrade it. Right-click to unpin.")
         } else if store.upgrading.contains(package.id) {
             ProgressView().controlSize(.small)
         } else {
-            Button("Update") { store.upgrade(package) }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+            RowUpdateButton { store.upgrade(package) }
         }
-    }
-}
-
-struct PackageIcon: View {
-    let kind: PackageKind
-
-    var body: some View {
-        Image(systemName: kind == .cask ? "macwindow" : "terminal")
-            .frame(width: 28, height: 28)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
     }
 }
 
@@ -234,56 +286,47 @@ private struct ErrorBanner: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.yellow)
+                .font(.system(size: 11))
+                .foregroundStyle(.orange)
             Text(message)
-                .font(.caption)
+                .font(.system(size: 11))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
+            .help("Dismiss")
         }
         .padding(10)
-        .background(.yellow.opacity(0.1))
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.orange.opacity(0.1)))
     }
 }
 
 private struct OutputView: View {
     @Environment(UpdateStore.self) private var store
-    @State private var isExpanded = false
 
     var body: some View {
-        VStack(spacing: 6) {
-            HStack {
-                Button {
-                    isExpanded.toggle()
-                } label: {
-                    Label("Output", systemImage: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.caption.weight(.semibold))
-                }
-                .buttonStyle(.borderless)
-                Spacer()
-                if isExpanded {
-                    Button("Clear") { store.clearLog() }
-                        .buttonStyle(.borderless)
-                        .font(.caption)
-                }
-            }
-            if isExpanded {
-                ScrollView {
-                    Text(store.log)
-                        .font(.system(size: 10, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .defaultScrollAnchor(.bottom)
-                .frame(height: 150)
-                .padding(6)
-                .background(.black.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
-            }
+        ScrollView {
+            Text(store.log)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .defaultScrollAnchor(.bottom)
+        .frame(height: 140)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.primary.opacity(0.05)))
+        .overlay(alignment: .topTrailing) {
+            Button("Clear") { store.clearLog() }
+                .buttonStyle(.plain)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .padding(6)
+        }
+        .padding(12)
     }
 }

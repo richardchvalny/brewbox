@@ -7,6 +7,7 @@ enum Preferences {
         static let includeCasks = "includeCasks"
         static let greedy = "greedy"
         static let notifications = "notifications"
+        static let showCountInMenuBar = "showCountInMenuBar"
     }
 
     static let defaultCheckIntervalHours = 4

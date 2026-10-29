@@ -34,9 +34,8 @@ struct InstalledListView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
-            Divider()
             content
-                .frame(height: 360)
+                .frame(height: 380)
         }
         .task {
             if store.installed.isEmpty {
@@ -46,25 +45,29 @@ struct InstalledListView: View {
     }
 
     private var toolbar: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 4) {
+        HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search", text: $searchText)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                TextField("Search packages", text: $searchText)
                     .textFieldStyle(.plain)
+                    .font(.system(size: 12))
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
                     }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
+                    .help("Clear search")
                 }
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
-            .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.primary.opacity(0.06)))
 
             Menu {
                 Picker("Show", selection: $kindFilter) {
@@ -72,11 +75,15 @@ struct InstalledListView: View {
                 }
                 .pickerStyle(.inline)
                 Divider()
-                Toggle("Show Dependencies", isOn: $showDependencies)
+                Toggle("Show dependencies", isOn: $showDependencies)
                 Divider()
-                Button("Reload") { Task { await store.loadInstalled() } }
+                Button("Reload list") { Task { await store.loadInstalled() } }
             } label: {
-                Image(systemName: "line.3.horizontal.decrease.circle")
+                Image(systemName: isFiltered
+                    ? "line.3.horizontal.decrease.circle.fill"
+                    : "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(isFiltered ? Color.accentColor : Color.secondary)
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -84,7 +91,11 @@ struct InstalledListView: View {
             .help("Filter")
         }
         .padding(.horizontal, 12)
-        .padding(.bottom, 8)
+        .padding(.vertical, 10)
+    }
+
+    private var isFiltered: Bool {
+        kindFilter != .all || showDependencies
     }
 
     @ViewBuilder
@@ -98,8 +109,14 @@ struct InstalledListView: View {
                     Text("No packages loaded")
                 }
             }
+            .font(.system(size: 12))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if filtered.isEmpty {
+            Text("No packages match “\(searchText)”")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
                 LazyVStack(spacing: 0) {
@@ -113,16 +130,20 @@ struct InstalledListView: View {
     }
 
     private var footnote: some View {
-        VStack(spacing: 2) {
+        HStack(spacing: 4) {
             Text("\(filtered.count) of \(store.installed.count) packages")
             if hiddenDependencyCount > 0 {
-                Button("Show \(hiddenDependencyCount) hidden dependencies") { showDependencies = true }
-                    .buttonStyle(.link)
+                Text("·")
+                Button(hiddenDependencyCount == 1 ? "Show 1 dependency" : "Show \(hiddenDependencyCount) dependencies") {
+                    showDependencies = true
+                }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
             }
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .padding(.vertical, 10)
+        .font(.system(size: 11))
+        .foregroundStyle(.tertiary)
+        .padding(.vertical, 12)
     }
 }
 
@@ -131,70 +152,69 @@ private struct InstalledRow: View {
     @Environment(\.openURL) private var openURL
     let package: InstalledPackage
 
+    private var outdated: OutdatedPackage? {
+        store.outdatedPackage(for: package).flatMap { $0.pinned ? nil : $0 }
+    }
+
     var body: some View {
         HStack(spacing: 10) {
-            PackageIcon(kind: package.kind)
-                .opacity(package.installedOnRequest ? 1 : 0.5)
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     Text(package.title)
-                        .fontWeight(.medium)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(package.installedOnRequest ? .primary : .secondary)
                         .lineLimit(1)
-                    Text(displayVersion(package.version))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    KindGlyph(kind: package.kind)
+                    if package.pinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 8))
+                            .foregroundStyle(.tertiary)
+                            .help("Pinned")
+                    }
                     if !package.installedOnRequest {
                         Text("dependency")
-                            .font(.caption2)
-                            .padding(.horizontal, 4)
-                            .background(.quaternary, in: Capsule())
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
                     }
                 }
-                if let summary = package.summary {
-                    Text(summary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                if let outdated {
+                    VersionChange(from: package.version, to: outdated.currentVersion)
+                } else {
+                    HStack(spacing: 6) {
+                        Text(displayVersion(package.version))
+                            .monospacedDigit()
+                        if let summary = package.summary {
+                            Text(summary)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
                 }
             }
             Spacer(minLength: 4)
-            trailing
+            if store.upgrading.contains(package.id) {
+                ProgressView().controlSize(.small)
+            } else if let outdated {
+                RowUpdateButton { store.upgrade(outdated) }
+            }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
+        .rowHover()
         .help(package.summary ?? package.name)
         .contextMenu {
             if let homepage = package.homepage {
-                Button("Open Homepage") { openURL(homepage) }
+                Button("Open homepage") { openURL(homepage) }
             }
             if package.kind == .formula {
-                Button(package.pinned ? "Unpin" : "Pin Current Version") {
+                Button(package.pinned ? "Unpin" : "Pin current version") {
                     store.togglePin(name: package.name, isPinned: package.pinned)
                 }
             }
-            Button("Copy Name") {
+            Button("Copy name") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(package.name, forType: .string)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var trailing: some View {
-        if store.upgrading.contains(package.id) {
-            ProgressView().controlSize(.small)
-        } else if let outdated = store.outdatedPackage(for: package), !outdated.pinned {
-            Button("Update to \(displayVersion(outdated.currentVersion))") { store.upgrade(outdated) }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .lineLimit(1)
-        } else if package.pinned {
-            Image(systemName: "pin.fill")
-                .foregroundStyle(.secondary)
-                .help("Pinned — brew won't upgrade it")
         }
     }
 }

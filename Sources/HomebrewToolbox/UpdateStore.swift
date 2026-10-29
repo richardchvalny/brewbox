@@ -11,7 +11,12 @@ final class UpdateStore {
     /// IDs of packages that are upgrading or waiting in the queue.
     private(set) var upgrading: Set<String> = []
     /// What brew is doing right now, shown in the header.
-    private(set) var activity: String?
+    private(set) var activity: String? {
+        didSet { updateIconAnimation() }
+    }
+    /// Current bubbles animation frame; nil while idle.
+    private(set) var iconFrame: Int?
+    private var animationTask: Task<Void, Never>?
     private(set) var log = ""
     var errorMessage: String?
 
@@ -36,6 +41,15 @@ final class UpdateStore {
             errorMessage = "Homebrew wasn't found in /opt/homebrew or /usr/local."
         }
         startScheduler()
+    }
+
+    /// Static store for snapshots: no brew, no scheduler.
+    init(preview packages: [OutdatedPackage], installed: [InstalledPackage], log: String = "") {
+        brew = BrewService(brewURL: URL(fileURLWithPath: "/opt/homebrew/bin/brew"))
+        self.packages = packages
+        self.installed = installed
+        self.log = log
+        lastChecked = .now.addingTimeInterval(-12 * 60)
     }
 
     // MARK: - Checking
@@ -195,6 +209,24 @@ final class UpdateStore {
     }
 
     // MARK: - Helpers
+
+    private func updateIconAnimation() {
+        if activity != nil {
+            guard animationTask == nil else { return }
+            animationTask = Task { [weak self] in
+                var frame = 0
+                while !Task.isCancelled {
+                    self?.iconFrame = frame
+                    frame = (frame + 1) % BubblesIcon.frameCount
+                    try? await Task.sleep(for: .milliseconds(80))
+                }
+            }
+        } else {
+            animationTask?.cancel()
+            animationTask = nil
+            iconFrame = nil
+        }
+    }
 
     private func runLogged(_ arguments: [String], using brew: BrewService) async throws {
         appendLog("\n$ brew \(arguments.joined(separator: " "))\n")

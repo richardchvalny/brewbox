@@ -7,18 +7,31 @@ struct HomebrewToolboxApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = UpdateStore()
 
+    init() {
+        Snapshot.runIfRequested()
+    }
+
     var body: some Scene {
         MenuBarExtra {
             MenuView()
                 .environment(store)
         } label: {
-            let count = store.updatableCount
-            Image(systemName: count > 0 ? "shippingbox.fill" : "shippingbox")
-            if count > 0 {
-                Text("\(count)")
-            }
+            MenuBarLabel(store: store)
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+struct MenuBarLabel: View {
+    let store: UpdateStore
+    @AppStorage(Preferences.Key.showCountInMenuBar) private var showCount = true
+
+    var body: some View {
+        let count = store.updatableCount
+        Image(nsImage: BubblesIcon.image(hasUpdates: count > 0, frame: store.iconFrame))
+        if showCount && count > 0 {
+            Text("\(count)")
+        }
     }
 }
 

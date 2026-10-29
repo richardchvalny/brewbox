@@ -5,7 +5,8 @@ outdated formulae and casks in the background and upgrades them with one click.
 
 ## Features
 
-- Menu bar icon with the number of available updates
+- Subtle bubbles menu bar icon: a filled dot and count when updates are waiting,
+  rising bubbles while brew works
 - Periodic `brew update` + `brew outdated` (interval configurable, 1–24 h)
 - Per-package **Update** and **Update All**, queued so brew never runs twice at once
 - Live `brew upgrade` output
@@ -27,6 +28,7 @@ outdated formulae and casks in the background and upgrades them with one click.
 make run       # dev run straight from SwiftPM
 make open      # build "build/Homebrew Toolbox.app" and open it
 make install   # copy the app to /Applications and launch it
+make snapshots # render the panel with sample data to build/snapshots/
 ```
 
 Notifications and launch at login only work from the bundled app.
