@@ -9,7 +9,9 @@ outdated formulae and casks in the background and upgrades them with one click.
 - Periodic `brew update` + `brew outdated` (interval configurable, 1–24 h)
 - Per-package **Update** and **Update All**, queued so brew never runs twice at once
 - Live `brew upgrade` output
-- Pin / unpin formulae (right-click a row)
+- **Installed** tab: searchable list of everything installed, filter by formulae/casks,
+  dependencies hidden by default, update straight from the list
+- Pin / unpin formulae, open homepage (right-click a row)
 - Notifications for new updates, launch at login
 - Optional: include self-updating casks (`--greedy`)
 
@@ -36,7 +38,8 @@ Notifications and launch at login only work from the bundled app.
 | `BrewService.swift` | Runs `brew` with a clean environment, streams output |
 | `Models.swift` | Parses `brew outdated --json=v2` |
 | `UpdateStore.swift` | State, scheduler, serial command queue, notifications |
-| `MenuView.swift` | The menu bar panel |
+| `MenuView.swift` | The menu bar panel and Updates tab |
+| `InstalledListView.swift` | Installed tab with search and filters |
 | `SettingsView.swift` | In-panel settings |
 
 ## Known limitations

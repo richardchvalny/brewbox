@@ -3,6 +3,12 @@ import SwiftUI
 struct MenuView: View {
     @Environment(UpdateStore.self) private var store
     @State private var showingSettings = false
+    @State private var tab = Tab.updates
+
+    private enum Tab {
+        case updates
+        case installed
+    }
 
     var body: some View {
         Group {
@@ -23,7 +29,21 @@ struct MenuView: View {
                 ErrorBanner(message: error) { store.errorMessage = nil }
                 Divider()
             }
-            packageList
+            Picker("View", selection: $tab) {
+                Text(store.updatableCount > 0 ? "Updates (\(store.updatableCount))" : "Updates")
+                    .tag(Tab.updates)
+                Text("Installed").tag(Tab.installed)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            switch tab {
+            case .updates:
+                packageList
+            case .installed:
+                InstalledListView()
+            }
             if !store.log.isEmpty {
                 Divider()
                 OutputView()
@@ -147,9 +167,7 @@ private struct PackageRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: package.kind == .cask ? "macwindow" : "terminal")
-                .frame(width: 28, height: 28)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+            PackageIcon(kind: package.kind)
             VStack(alignment: .leading, spacing: 2) {
                 Text(package.name)
                     .fontWeight(.medium)
@@ -171,7 +189,9 @@ private struct PackageRow: View {
         .contentShape(Rectangle())
         .contextMenu {
             if package.kind == .formula {
-                Button(package.pinned ? "Unpin" : "Pin Current Version") { store.togglePin(package) }
+                Button(package.pinned ? "Unpin" : "Pin Current Version") {
+                    store.togglePin(name: package.name, isPinned: package.pinned)
+                }
             }
             Button("Copy Upgrade Command") {
                 let flag = package.kind == .cask ? " --cask" : ""
@@ -194,6 +214,16 @@ private struct PackageRow: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
         }
+    }
+}
+
+struct PackageIcon: View {
+    let kind: PackageKind
+
+    var body: some View {
+        Image(systemName: kind == .cask ? "macwindow" : "terminal")
+            .frame(width: 28, height: 28)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
     }
 }
 

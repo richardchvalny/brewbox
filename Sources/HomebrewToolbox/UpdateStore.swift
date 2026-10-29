@@ -15,6 +15,10 @@ final class UpdateStore {
     private(set) var log = ""
     var errorMessage: String?
 
+    /// Everything installed; empty until the Installed tab is first opened.
+    private(set) var installed: [InstalledPackage] = []
+    private(set) var isLoadingInstalled = false
+
     let brew: BrewService?
 
     var updatableCount: Int { packages.filter { !$0.pinned }.count }
@@ -73,6 +77,35 @@ final class UpdateStore {
         packages = result
     }
 
+    func outdatedPackage(for package: InstalledPackage) -> OutdatedPackage? {
+        packages.first { $0.id == package.id }
+    }
+
+    // MARK: - Installed packages
+
+    func loadInstalled() async {
+        guard let brew, !isLoadingInstalled else { return }
+        isLoadingInstalled = true
+        await enqueue { [self] in
+            defer { isLoadingInstalled = false }
+            do {
+                try await refreshInstalled(using: brew)
+            } catch {
+                errorMessage = "Couldn't list installed packages: \(error.localizedDescription)"
+            }
+        }.value
+    }
+
+    private func refreshInstalled(using brew: BrewService) async throws {
+        installed = try InstalledPackage.parse(try await brew.run(["info", "--json=v2", "--installed"]))
+    }
+
+    /// Keeps the Installed tab current after upgrades, without loading it eagerly.
+    private func refreshInstalledIfLoaded(using brew: BrewService) async {
+        guard !installed.isEmpty else { return }
+        try? await refreshInstalled(using: brew)
+    }
+
     /// Checks on launch and then whenever the last check is older than the
     /// configured interval. Polling keeps interval changes effective immediately.
     private func startScheduler() {
@@ -109,6 +142,7 @@ final class UpdateStore {
             } catch {
                 errorMessage = upgradeFailureMessage(package.name, error)
             }
+            await refreshInstalledIfLoaded(using: brew)
         }
     }
 
@@ -133,15 +167,18 @@ final class UpdateStore {
             }
             // Some packages may have failed; ask brew what's left.
             try? await refreshOutdated(using: brew)
+            await refreshInstalledIfLoaded(using: brew)
         }
     }
 
-    func togglePin(_ package: OutdatedPackage) {
-        guard let brew, package.kind == .formula else { return }
+    /// Only formulae can be pinned.
+    func togglePin(name: String, isPinned: Bool) {
+        guard let brew else { return }
         enqueue { [self] in
             do {
-                try await brew.run([package.pinned ? "unpin" : "pin", package.name])
+                try await brew.run([isPinned ? "unpin" : "pin", name])
                 try await refreshOutdated(using: brew)
+                await refreshInstalledIfLoaded(using: brew)
             } catch {
                 errorMessage = error.localizedDescription
             }
