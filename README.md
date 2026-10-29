@@ -7,7 +7,10 @@ outdated formulae and casks in the background and upgrades them with one click.
 
 - Subtle bubbles menu bar icon: a filled dot and count when updates are waiting,
   rising bubbles while brew works
-- Periodic `brew update` + `brew outdated` (interval configurable, 1–24 h)
+- Scheduled `brew update` + `brew outdated`: every day, every 2, 7 or 15 days, or on the
+  1st of every month, at a time you pick (missed runs catch up when the Mac wakes)
+- Optional automatic updates on that schedule, for every package except pinned ones and
+  ones you turn off in their details
 - Per-package **Update** and **Update All**, queued so brew never runs twice at once
 - Live `brew upgrade` output
 - **Installed** tab: searchable list of everything installed, filter by formulae/casks,
@@ -17,8 +20,7 @@ outdated formulae and casks in the background and upgrades them with one click.
   package detail with homepage and formulae.brew.sh links, one-click install
 - Pin / unpin formulae, open homepage (right-click a row)
 - Errors show the failing command and can be copied as plain text or as a ready-made
-  prompt for an AI agent (with full output and your macOS/Homebrew versions);
-  Settings → Troubleshooting → Simulate an error lets you try it safely
+  prompt for an AI agent (with full output and your macOS/Homebrew versions)
 - Notifications for new updates, launch at login
 - Optional: include self-updating casks (`--greedy`)
 
@@ -51,6 +53,7 @@ Notifications and launch at login only work from the bundled app.
 | `Catalog.swift` | Downloads and caches the formulae.brew.sh catalog, ranks search results |
 | `DiscoverView.swift` | Discover tab, package detail and install |
 | `ErrorReport.swift` | Error context and the copy-for-AI prompt |
+| `UpdateSchedule.swift` | Schedule options and next-run calculation |
 | `SettingsView.swift` | In-panel settings |
 
 ## Known limitations

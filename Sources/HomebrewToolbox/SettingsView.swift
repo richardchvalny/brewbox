@@ -5,14 +5,29 @@ struct SettingsView: View {
     @Environment(UpdateStore.self) private var store
     let onBack: () -> Void
 
-    @AppStorage(Preferences.Key.checkIntervalHours) private var checkIntervalHours = Preferences.defaultCheckIntervalHours
+    @AppStorage(Preferences.Key.checkFrequency) private var frequency = Preferences.defaultCheckFrequency
+    @AppStorage(Preferences.Key.checkMinuteOfDay) private var minuteOfDay = Preferences.defaultCheckMinuteOfDay
+    @AppStorage(Preferences.Key.autoUpdate) private var autoUpdate = false
     @AppStorage(Preferences.Key.includeCasks) private var includeCasks = true
     @AppStorage(Preferences.Key.greedy) private var greedy = false
     @AppStorage(Preferences.Key.notifications) private var notifications = true
     @AppStorage(Preferences.Key.showCountInMenuBar) private var showCountInMenuBar = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
-    private let intervals = [1, 2, 4, 8, 12, 24]
+    /// DatePicker works with dates; the schedule stores minutes after midnight.
+    private var checkTime: Binding<Date> {
+        Binding {
+            Calendar.current.date(bySettingHour: minuteOfDay / 60, minute: minuteOfDay % 60, second: 0, of: .now) ?? .now
+        } set: { date in
+            let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+            minuteOfDay = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+        }
+    }
+
+    private var nextRun: Date {
+        UpdateSchedule(frequency: frequency, minuteOfDay: minuteOfDay)
+            .nextRun(after: store.lastScheduledRun, anchor: store.scheduleAnchor)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -27,12 +42,24 @@ struct SettingsView: View {
             .padding(.bottom, 4)
 
             Form {
-                Section("Updates") {
-                    Picker("Check every", selection: $checkIntervalHours) {
-                        ForEach(intervals, id: \.self) { hours in
-                            Text(hours == 1 ? "1 hour" : "\(hours) hours").tag(hours)
-                        }
+                Section {
+                    Picker("Check", selection: $frequency) {
+                        ForEach(CheckFrequency.allCases) { Text($0.title).tag($0) }
                     }
+                    DatePicker("At", selection: checkTime, displayedComponents: .hourAndMinute)
+                    Toggle(isOn: $autoUpdate) {
+                        Text("Install updates automatically")
+                        Text("Skips pinned packages and ones you turn off in their details.")
+                    }
+                } header: {
+                    Text("Schedule")
+                } footer: {
+                    Text("Next check \(nextRun.formatted(.relative(presentation: .named))), \(nextRun.formatted(date: .abbreviated, time: .shortened)).")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Packages") {
                     Toggle("Include casks (apps)", isOn: $includeCasks)
                     Toggle(isOn: $greedy) {
                         Text("Include self-updating casks")
@@ -60,23 +87,6 @@ struct SettingsView: View {
                     }
                 }
 
-                Section {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Simulate an error")
-                            Text("Runs a brew command that fails on purpose, so you can try the error banner.")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button("Run") {
-                            store.simulateError()
-                            onBack()
-                        }
-                    }
-                } header: {
-                    Text("Troubleshooting")
-                }
             }
             .formStyle(.grouped)
             .toggleStyle(.switch)

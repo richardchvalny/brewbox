@@ -43,6 +43,21 @@ final class UpdateStore {
 
     var installedIDs: Set<String> { Set(installed.map(\.id)) }
 
+    /// When the last scheduled check ran; persisted so the schedule survives relaunches.
+    private(set) var lastScheduledRun: Date? = UserDefaults.standard.object(forKey: Preferences.Key.lastScheduledRun) as? Date {
+        didSet { UserDefaults.standard.set(lastScheduledRun, forKey: Preferences.Key.lastScheduledRun) }
+    }
+    /// When scheduling started, so the first run doesn't drift before it happens.
+    let scheduleAnchor: Date
+    /// Packages the user opted out of automatic updates.
+    private(set) var autoUpdateExcluded = Set(UserDefaults.standard.stringArray(forKey: Preferences.Key.autoUpdateExcluded) ?? []) {
+        didSet { UserDefaults.standard.set(autoUpdateExcluded.sorted(), forKey: Preferences.Key.autoUpdateExcluded) }
+    }
+
+    var nextScheduledRun: Date {
+        Preferences.schedule.nextRun(after: lastScheduledRun, anchor: scheduleAnchor)
+    }
+
     let brew: BrewService?
 
     var updatableCount: Int { packages.filter { !$0.pinned }.count }
@@ -55,6 +70,7 @@ final class UpdateStore {
     private static let maxLogLength = 20_000
 
     init() {
+        scheduleAnchor = Self.loadScheduleAnchor()
         brew = BrewService.locate()
         if let brew {
             Task { [weak self] in
@@ -80,6 +96,7 @@ final class UpdateStore {
         error: ErrorReport? = nil
     ) {
         brew = BrewService(brewURL: URL(fileURLWithPath: "/opt/homebrew/bin/brew"))
+        scheduleAnchor = .now
         self.error = error
         brewVersion = "Homebrew 7.0.11"
         self.packages = packages
@@ -233,19 +250,54 @@ final class UpdateStore {
         try? await refreshInstalled(using: brew)
     }
 
-    /// Checks on launch and then whenever the last check is older than the
-    /// configured interval. Polling keeps interval changes effective immediately.
+    private static func loadScheduleAnchor() -> Date {
+        if let anchor = UserDefaults.standard.object(forKey: Preferences.Key.scheduleAnchor) as? Date {
+            return anchor
+        }
+        let anchor = Date.now
+        UserDefaults.standard.set(anchor, forKey: Preferences.Key.scheduleAnchor)
+        return anchor
+    }
+
+    /// Checks once on launch so the menu bar is current, then runs the scheduled
+    /// check (and automatic update) whenever it comes due. Polling every minute
+    /// picks up schedule changes and catches up after the Mac wakes.
     private func startScheduler() {
         schedulerTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(3))
+            await self?.check()
             while !Task.isCancelled {
                 guard let self else { return }
-                let interval = TimeInterval(Preferences.checkIntervalHours * 3600)
-                if lastChecked.map({ Date.now.timeIntervalSince($0) >= interval }) ?? true {
-                    await check()
+                if Date.now >= nextScheduledRun {
+                    await runScheduled()
                 }
-                try? await Task.sleep(for: .seconds(5 * 60))
+                try? await Task.sleep(for: .seconds(60))
             }
+        }
+    }
+
+    private func runScheduled() async {
+        // Recorded first, so a failing check doesn't retry every minute.
+        lastScheduledRun = .now
+        await check()
+        if Preferences.autoUpdate {
+            let targets = packages.filter { !$0.pinned && !autoUpdateExcluded.contains($0.id) }
+            upgrade(targets, automatically: true)
+        }
+    }
+
+    // MARK: - Automatic updates
+
+    /// Every package updates automatically unless the user turned it off.
+    func isAutoUpdateEnabled(id: String) -> Bool {
+        !autoUpdateExcluded.contains(id)
+    }
+
+    func setAutoUpdate(_ enabled: Bool, id: String) {
+        if enabled {
+            autoUpdateExcluded.remove(id)
+        } else {
+            autoUpdateExcluded.insert(id)
         }
     }
 
@@ -274,27 +326,50 @@ final class UpdateStore {
     }
 
     func upgradeAll() {
+        upgrade(packages, automatically: false)
+    }
+
+    /// Upgrades formulae and casks with separate commands, so a name shared by a
+    /// formula and a cask can't be resolved to the wrong one.
+    private func upgrade(_ candidates: [OutdatedPackage], automatically: Bool) {
         guard let brew else { return }
-        let targets = packages.filter { !$0.pinned && !upgrading.contains($0.id) }
+        let targets = candidates.filter { !$0.pinned && !upgrading.contains($0.id) }
         guard !targets.isEmpty else { return }
         upgrading.formUnion(targets.map(\.id))
 
-        var arguments = ["upgrade"]
-        if !Preferences.includeCasks { arguments.append("--formula") }
-        if Preferences.greedy { arguments.append("--greedy") }
+        var commands: [[String]] = []
+        let formulae = targets.filter { $0.kind == .formula }.map(\.name)
+        if !formulae.isEmpty {
+            commands.append(["upgrade", "--formula"] + formulae)
+        }
+        let casks = targets.filter { $0.kind == .cask }.map(\.name)
+        if !casks.isEmpty {
+            commands.append(["upgrade", "--cask"] + (Preferences.greedy ? ["--greedy"] : []) + casks)
+        }
 
         enqueue { [self] in
             defer { upgrading.subtract(targets.map(\.id)) }
-            activity = "Upgrading \(targets.count) packages…"
+            let count = targets.count == 1 ? targets[0].name : "\(targets.count) packages"
+            activity = automatically ? "Updating \(count) automatically…" : "Upgrading \(count)…"
             defer { activity = nil }
-            do {
-                try await runLogged(arguments, using: brew)
-            } catch {
-                self.error = ErrorReport(title: "Upgrading packages failed", error: error)
+
+            for arguments in commands {
+                do {
+                    try await runLogged(arguments, using: brew)
+                } catch {
+                    self.error = ErrorReport(
+                        title: automatically ? "Automatic update failed" : "Upgrading packages failed",
+                        error: error
+                    )
+                }
             }
             // Some packages may have failed; ask brew what's left.
             try? await refreshOutdated(using: brew)
             await refreshInstalledIfLoaded(using: brew)
+            if automatically {
+                let remaining = Set(packages.map(\.id))
+                notifyAboutAutomaticUpdates(targets.filter { !remaining.contains($0.id) })
+            }
         }
     }
 
@@ -308,22 +383,6 @@ final class UpdateStore {
                 await refreshInstalledIfLoaded(using: brew)
             } catch {
                 self.error = ErrorReport(title: isPinned ? "Unpinning \(name) failed" : "Pinning \(name) failed", error: error)
-            }
-        }
-    }
-
-    /// Runs a brew command that fails on purpose (installing a package that doesn't
-    /// exist), so the error banner and its copy actions can be tried safely.
-    func simulateError() {
-        guard let brew else { return }
-        let name = "homebrew-toolbox-simulated-error"
-        enqueue { [self] in
-            activity = "Installing \(name)…"
-            defer { activity = nil }
-            do {
-                try await runLogged(["install", "--formula", name], using: brew)
-            } catch {
-                self.error = ErrorReport(title: "Installing \(name) failed (simulated)", error: error)
             }
         }
     }
@@ -388,6 +447,16 @@ final class UpdateStore {
         content.title = fresh.count == 1 ? "Update available" : "\(fresh.count) updates available"
         content.body = fresh.prefix(5).map { "\($0.name) \(displayVersion($0.currentVersion))" }
             .joined(separator: ", ") + (fresh.count > 5 ? ", …" : "")
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        Task { try? await UNUserNotificationCenter.current().add(request) }
+    }
+
+    private func notifyAboutAutomaticUpdates(_ updated: [OutdatedPackage]) {
+        guard !updated.isEmpty, Preferences.notifications, Preferences.isBundled else { return }
+        let content = UNMutableNotificationContent()
+        content.title = updated.count == 1 ? "Updated \(updated[0].name)" : "Updated \(updated.count) packages"
+        content.body = updated.prefix(5).map { "\($0.name) \(displayVersion($0.currentVersion))" }
+            .joined(separator: ", ") + (updated.count > 5 ? ", …" : "")
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         Task { try? await UNUserNotificationCenter.current().add(request) }
     }

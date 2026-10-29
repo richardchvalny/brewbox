@@ -12,6 +12,8 @@ enum Snapshot {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         _ = NSApplication.shared
+        // Show the per-package toggle as it looks with automatic updates on.
+        UserDefaults.standard.set(true, forKey: Preferences.Key.autoUpdate)
         for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
             render(MenuView(initialTab: .updates), store: sampleStore(), appearance: appearance,
                    to: directory.appendingPathComponent("updates-\(name).png"))
@@ -31,9 +33,12 @@ enum Snapshot {
                    appearance: appearance, to: directory.appendingPathComponent("installed-detail-\(name).png"))
             render(MenuView(initialTab: .updates), store: errorStore(), appearance: appearance,
                    to: directory.appendingPathComponent("error-\(name).png"))
+            render(SettingsView {}.frame(width: 340), store: sampleStore(), appearance: appearance,
+                   to: directory.appendingPathComponent("settings-\(name).png"))
             render(MenuBarIconStrip(), store: sampleStore(), appearance: appearance,
                    to: directory.appendingPathComponent("icon-\(name).png"))
         }
+        UserDefaults.standard.removeObject(forKey: Preferences.Key.autoUpdate)
         exit(0)
     }
 
@@ -76,20 +81,20 @@ enum Snapshot {
         )
     }
 
-    /// Mirrors what `brew install --formula homebrew-toolbox-simulated-error` really prints.
+    /// Mirrors what brew really prints when a formula doesn't exist.
     private static func errorStore() -> UpdateStore {
         let message = """
-            Warning: No available formula with the name "homebrew-toolbox-simulated-error".
-            Error: No formulae found for homebrew-toolbox-simulated-error.
+            Warning: No available formula with the name "nonexistent-tool".
+            Error: No formulae found for nonexistent-tool.
             """
         let error = BrewError(
             message: message,
-            command: "brew install --formula homebrew-toolbox-simulated-error",
+            command: "brew install --formula nonexistent-tool",
             exitCode: 1,
             output: message + "\n==> Searching for similarly named formulae..."
         )
         let store = sampleStore()
-        store.error = ErrorReport(title: "Installing homebrew-toolbox-simulated-error failed (simulated)", error: error)
+        store.error = ErrorReport(title: "Installing nonexistent-tool failed", error: error)
         return store
     }
 

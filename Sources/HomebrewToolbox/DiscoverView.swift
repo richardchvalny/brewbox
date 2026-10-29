@@ -202,11 +202,13 @@ struct PackageDetailView: View {
     let onBack: () -> Void
     @State private var copied = false
     @State private var confirmingUninstall = false
+    @AppStorage(Preferences.Key.autoUpdate) private var autoUpdate = false
 
     private var isInstalled: Bool { store.installedIDs.contains(package.id) }
     private var isInstalling: Bool { store.installing.contains(package.id) }
     private var isUninstalling: Bool { store.uninstalling.contains(package.id) }
     private var isUpgrading: Bool { store.upgrading.contains(package.id) }
+    private var isPinned: Bool { store.installed.first { $0.id == package.id }?.pinned ?? false }
     private var installedVersion: String? {
         store.installed.first { $0.id == package.id }?.version
     }
@@ -236,6 +238,9 @@ struct PackageDetailView: View {
                     }
                     links
                     details
+                    if isInstalled {
+                        autoUpdateCard
+                    }
                     if let caveats = package.caveats {
                         section("Caveats") {
                             Text(caveats.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -322,6 +327,45 @@ struct PackageDetailView: View {
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.primary.opacity(0.04)))
+    }
+
+    private var autoUpdateCard: some View {
+        let enabled = store.isAutoUpdateEnabled(id: package.id)
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("Update automatically")
+                    .font(.system(size: 12, weight: .medium))
+                Spacer()
+                Toggle("Update automatically", isOn: Binding(
+                    get: { enabled },
+                    set: { store.setAutoUpdate($0, id: package.id) }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .disabled(!autoUpdate || isPinned)
+            }
+
+            Text(autoUpdateCaption(enabled: enabled))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.primary.opacity(0.04)))
+    }
+
+    private func autoUpdateCaption(enabled: Bool) -> String {
+        if isPinned {
+            return "Pinned packages are never updated. Unpin it to update it automatically."
+        }
+        if !autoUpdate {
+            return "Automatic updates are off. Turn them on in Settings."
+        }
+        return enabled
+            ? "Installs new versions on your update schedule."
+            : "Skipped by automatic updates. You'll update it yourself."
     }
 
     private func detailRow(_ label: String, _ value: String) -> some View {
