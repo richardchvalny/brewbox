@@ -119,3 +119,12 @@ too): plain `make release`, after a one-time setup:
 
 - Casks whose installer asks for an administrator password can't be upgraded from
   the app; the error tells you to run them in Terminal.
+
+## Contributing
+
+Bug reports and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first:
+new features start as an issue, and Brewbox stays small and dependency-free.
+
+## License
+
+[MIT](LICENSE)
