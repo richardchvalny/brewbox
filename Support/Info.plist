@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>local.Brewbox</string>
+    <string>io.brewbox.Brewbox</string>
     <key>CFBundleName</key>
     <string>Brewbox</string>
     <key>CFBundleDisplayName</key>
