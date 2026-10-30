@@ -110,7 +110,7 @@ struct MenuView: View {
             }
             .keyboardShortcut(",")
             IconButton(systemImage: "power", help: "Quit Brewbox (⌘Q)") {
-                NSApplication.shared.terminate(nil)
+                AppDelegate.quit()
             }
             .keyboardShortcut("q")
         }

@@ -43,6 +43,27 @@ struct MenuBarLabel: View {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    @MainActor private static var quitting = false
+
+    /// Quits for real; every other terminate request is checked in `applicationShouldTerminate`.
+    @MainActor
+    static func quit() {
+        quitting = true
+        NSApp.terminate(nil)
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Our own Quit/relaunch, or a quit Apple Event (logout, shutdown, Activity Monitor).
+        let event = NSAppleEventManager.shared().currentAppleEvent
+        if Self.quitting || event?.eventID == kAEQuitApplication {
+            return .terminateNow
+        }
+        // Otherwise it's the menu bar dropping our icon, which would quit the app without a
+        // word and leave no way back in. Explain it instead.
+        MenuBarHiddenWindow.shared.show()
+        return .terminateCancel
+    }
+
     func applicationWillFinishLaunching(_ notification: Notification) {
         // No Dock icon, even when launched via `swift run` without an Info.plist.
         NSApp.setActivationPolicy(.accessory)

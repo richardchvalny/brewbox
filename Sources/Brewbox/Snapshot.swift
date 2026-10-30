@@ -46,6 +46,8 @@ enum Snapshot {
             render(OnboardingView(initialStep: .homebrew) {},
                    store: UpdateStore(preview: [], installed: [], brewInstalled: false), appearance: appearance,
                    to: directory.appendingPathComponent("onboarding-2-missing-\(name).png"))
+            render(MenuBarHiddenView(openSettings: {}, quit: {}), store: sampleStore(), appearance: appearance,
+                   to: directory.appendingPathComponent("menu-bar-hidden-\(name).png"))
             render(MenuBarIconStrip(), store: sampleStore(), appearance: appearance,
                    to: directory.appendingPathComponent("icon-\(name).png"))
         }

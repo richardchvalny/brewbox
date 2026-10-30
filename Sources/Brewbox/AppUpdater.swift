@@ -100,7 +100,7 @@ final class AppUpdater {
             let appURL = Bundle.main.bundleURL
             let newAppURL = try await Self.prepare(release, replacing: appURL)
             try Self.relaunch(replacing: appURL, with: newAppURL, after: ProcessInfo.processInfo.processIdentifier)
-            NSApp.terminate(nil)
+            AppDelegate.quit()
         } catch {
             status = .available(release)
             throw error

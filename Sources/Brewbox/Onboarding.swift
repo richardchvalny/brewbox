@@ -149,7 +149,7 @@ struct OnboardingView: View {
 }
 
 /// The bundled app icon, or the bubbles mark when running without a bundle.
-private struct AppIconImage: View {
+struct AppIconImage: View {
     let size: CGFloat
 
     var body: some View {
