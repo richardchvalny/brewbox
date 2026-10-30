@@ -12,6 +12,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Brewbox" "$APP/Contents/MacOS/"
 cp Support/Info.plist "$APP/Contents/"
+cp Support/AppIcon.icns "$APP/Contents/Resources/"
 
 # The marketing version lives in Support/Info.plist; the build number is the
 # git commit count, so each build of a new commit gets a higher one.

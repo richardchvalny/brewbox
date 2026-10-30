@@ -1,6 +1,6 @@
 APP := build/Brewbox.app
 
-.PHONY: run app open install snapshots clean
+.PHONY: run app open install snapshots icon clean
 
 # Quick dev loop (no notifications / launch at login).
 run:
@@ -21,6 +21,10 @@ install: app
 snapshots:
 	swift build
 	.build/debug/Brewbox --snapshot build/snapshots
+
+# Redraw Support/AppIcon.icns (and AppIcon.png) from scripts/make-icon.swift.
+icon:
+	swift scripts/make-icon.swift
 
 clean:
 	rm -rf .build build

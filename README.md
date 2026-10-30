@@ -1,3 +1,5 @@
+<img src="Support/AppIcon.png" width="128" alt="Brewbox icon">
+
 # Brewbox
 
 A menu bar app for Homebrew in the spirit of JetBrains Toolbox: it checks for
@@ -37,6 +39,7 @@ make run       # dev run straight from SwiftPM
 make open      # build "build/Brewbox.app" and open it
 make install   # copy the app to /Applications and launch it
 make snapshots # render the panel with sample data to build/snapshots/
+make icon      # redraw the app icon from scripts/make-icon.swift
 ```
 
 The version lives in `Support/Info.plist` (`CFBundleShortVersionString`) and shows in

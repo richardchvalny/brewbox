@@ -8,6 +8,8 @@
     <string>Brewbox</string>
     <key>CFBundleDisplayName</key>
     <string>Brewbox</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleExecutable</key>
     <string>Brewbox</string>
     <key>CFBundlePackageType</key>
