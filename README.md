@@ -64,27 +64,6 @@ Settings along with the author. `make app` sets the build number to the git comm
 
 Notifications and launch at login only work from the bundled app.
 
-## Layout
-
-| File | Role |
-| --- | --- |
-| `BrewService.swift` | Runs `brew` with a clean environment, streams output |
-| `Models.swift` | Parses `brew outdated --json=v2` |
-| `UpdateStore.swift` | State, scheduler, serial command queue, notifications |
-| `AppUpdater.swift` | Checks GitHub releases for a newer Brewbox, installs it and relaunches |
-| `AppUpdateViews.swift` | Update banner in the panel and status row in Settings |
-| `MenuView.swift` | The menu bar panel and Updates tab |
-| `InstalledListView.swift` | Installed tab with search and filters |
-| `Catalog.swift` | Downloads and caches the formulae.brew.sh catalog, ranks search results |
-| `DiscoverView.swift` | Discover tab, package detail and install |
-| `AppInfo.swift` | Version and credits shown in Settings |
-| `ErrorReport.swift` | Error context and the copy-for-AI prompt |
-| `UpdateSchedule.swift` | Schedule options and next-run calculation |
-| `Onboarding.swift` | First-launch welcome window and Homebrew check |
-| `HomebrewInstaller.swift` | Official Homebrew install options |
-| `LegacyMigration.swift` | Moves settings over from the old "Homebrew Toolbox" app |
-| `SettingsView.swift` | In-panel settings |
-
 ## Known limitations
 
 - Casks whose installer asks for an administrator password can't be upgraded from
