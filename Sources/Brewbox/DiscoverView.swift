@@ -3,9 +3,11 @@ import SwiftUI
 /// Search the whole Homebrew catalog and open a package's detail to install it.
 struct DiscoverView: View {
     @Environment(UpdateStore.self) private var store
+    @Environment(\.switchTab) private var switchTab
     @State private var query: String
     @State private var results: [CatalogPackage] = []
     @State private var selected: CatalogPackage?
+    @State private var highlighted: String?
     @FocusState private var searchFocused: Bool
 
     private let suggestions = ["wget", "docker", "visual-studio-code", "ripgrep"]
@@ -57,9 +59,15 @@ struct DiscoverView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .focused($searchFocused)
-                .onSubmit {
-                    if let first = results.first { selected = first }
+                // Arrows move through the results while typing; Return opens one.
+                .listKeyboardNavigation(results.map(\.id), highlighted: $highlighted) { id in
+                    selected = results.first { $0.id == id }
                 }
+                .onSubmit {
+                    selected = results.first { $0.id == highlighted } ?? results.first
+                }
+                .onChange(of: query) { highlighted = nil }
+                .tabSwitching(switchTab) { query.isEmpty }
             if !query.isEmpty {
                 Button {
                     query = ""
@@ -77,7 +85,8 @@ struct DiscoverView: View {
         .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(.primary.opacity(0.06)))
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .onAppear { searchFocused = true }
+        // .task, so it runs after the previous tab gives up focus.
+        .task { searchFocused = true }
     }
 
     @ViewBuilder
@@ -106,15 +115,23 @@ struct DiscoverView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(results) { package in
-                        DiscoverRow(package: package, isInstalled: store.installedIDs.contains(package.id)) {
-                            selected = package
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(results) { package in
+                            DiscoverRow(
+                                package: package,
+                                isInstalled: store.installedIDs.contains(package.id),
+                                isHighlighted: highlighted == package.id
+                            ) {
+                                selected = package
+                            }
+                            .id(package.id)
                         }
                     }
+                    .padding(.bottom, 6)
                 }
-                .padding(.bottom, 6)
+                .modifier(ScrollToHighlight(highlighted: highlighted, proxy: proxy))
             }
         }
     }
@@ -149,6 +166,7 @@ struct DiscoverView: View {
 private struct DiscoverRow: View {
     let package: CatalogPackage
     let isInstalled: Bool
+    var isHighlighted = false
     let onSelect: () -> Void
 
     var body: some View {
@@ -189,7 +207,7 @@ private struct DiscoverRow: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.tertiary)
             }
-            .rowHover()
+            .rowHover(highlighted: isHighlighted)
         }
         .buttonStyle(.plain)
     }
@@ -202,6 +220,7 @@ struct PackageDetailView: View {
     let onBack: () -> Void
     @State private var copied = false
     @State private var confirmingUninstall = false
+    @FocusState private var focused: Bool
     @AppStorage(Preferences.Key.autoUpdate) private var autoUpdate = false
 
     private var isInstalled: Bool { store.installedIDs.contains(package.id) }
@@ -219,7 +238,7 @@ struct PackageDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
-                IconButton(systemImage: "chevron.left", help: "Back", action: onBack)
+                IconButton(systemImage: "chevron.left", help: "Back (Esc)", action: onBack)
                 Text(backTitle)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -259,6 +278,13 @@ struct PackageDetailView: View {
             Divider()
             actionBar
         }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focused)
+        .onKeyPress(.escape) { onBack(); return .handled }
+        .onKeyPress(.leftArrow) { onBack(); return .handled }
+        // After the list's search field goes away.
+        .task { focused = true }
     }
 
     private var header: some View {

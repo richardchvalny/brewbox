@@ -2,10 +2,13 @@ import SwiftUI
 
 struct InstalledListView: View {
     @Environment(UpdateStore.self) private var store
+    @Environment(\.switchTab) private var switchTab
     @State private var searchText = ""
     @State private var kindFilter = KindFilter.all
     @AppStorage("showDependencies") private var showDependencies = false
     @State private var selected: CatalogPackage?
+    @State private var highlighted: String?
+    @FocusState private var searchFocused: Bool
 
     init(initialSelection: CatalogPackage? = nil) {
         _selected = State(initialValue: initialSelection)
@@ -66,6 +69,14 @@ struct InstalledListView: View {
                 TextField("Search packages", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
+                    .focused($searchFocused)
+                    // Arrows move through the list while typing; Return opens the package.
+                    .listKeyboardNavigation(filtered.map(\.id), highlighted: $highlighted, onActivate: open)
+                    .onSubmit { open(highlighted ?? filtered.first?.id) }
+                    .tabSwitching(switchTab) { searchText.isEmpty }
+                    .onChange(of: searchText) { highlighted = nil }
+                    // .task, so it runs after the previous tab gives up focus.
+                    .task { searchFocused = true }
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
@@ -107,6 +118,11 @@ struct InstalledListView: View {
         .padding(.vertical, 10)
     }
 
+    private func open(_ id: String?) {
+        guard let package = filtered.first(where: { $0.id == id }) else { return }
+        selected = store.catalogPackage(for: package)
+    }
+
     private var isFiltered: Bool {
         kindFilter != .all || showDependencies
     }
@@ -131,15 +147,19 @@ struct InstalledListView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(filtered) { package in
-                        InstalledRow(package: package) {
-                            selected = store.catalogPackage(for: package)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filtered) { package in
+                            InstalledRow(package: package, isHighlighted: highlighted == package.id) {
+                                selected = store.catalogPackage(for: package)
+                            }
+                            .id(package.id)
                         }
+                        footnote
                     }
-                    footnote
                 }
+                .modifier(ScrollToHighlight(highlighted: highlighted, proxy: proxy))
             }
         }
     }
@@ -166,6 +186,7 @@ private struct InstalledRow: View {
     @Environment(UpdateStore.self) private var store
     @Environment(\.openURL) private var openURL
     let package: InstalledPackage
+    var isHighlighted = false
     let onSelect: () -> Void
 
     private var outdated: OutdatedPackage? {
@@ -219,7 +240,7 @@ private struct InstalledRow: View {
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.tertiary)
         }
-        .rowHover()
+        .rowHover(highlighted: isHighlighted)
         .onTapGesture(perform: onSelect)
         .help(package.summary ?? package.name)
         .contextMenu {

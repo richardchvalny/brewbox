@@ -70,9 +70,21 @@ struct MenuView: View {
                 Divider()
                 AppUpdateBanner()
             }
-            Divider()
-            footer
+            if !store.log.isEmpty {
+                Divider()
+                footer
+            }
         }
+        // Left and right arrows in the lists and empty search fields; package details use
+        // left for Back, so this isn't a handler here, where it would win over theirs.
+        .environment(\.switchTab, TabSwitcher(action: switchTab))
+    }
+
+    private static let tabs: [Tab] = [.updates, .installed, .discover]
+
+    private func switchTab(by offset: Int) {
+        guard store.brew != nil, let index = Self.tabs.firstIndex(of: tab) else { return }
+        tab = Self.tabs[(index + offset + Self.tabs.count) % Self.tabs.count]
     }
 
     private var header: some View {
@@ -88,13 +100,19 @@ struct MenuView: View {
                     .lineLimit(1)
             }
             Spacer()
-            IconButton(systemImage: "arrow.clockwise", help: "Check for updates") {
+            IconButton(systemImage: "arrow.clockwise", help: "Check for updates (⌘R)") {
                 Task { await store.check() }
             }
+            .keyboardShortcut("r")
             .disabled(store.isChecking || store.brew == nil)
-            IconButton(systemImage: "gearshape", help: "Settings") {
+            IconButton(systemImage: "gearshape", help: "Settings (⌘,)") {
                 showingSettings = true
             }
+            .keyboardShortcut(",")
+            IconButton(systemImage: "power", help: "Quit Brewbox (⌘Q)") {
+                NSApplication.shared.terminate(nil)
+            }
+            .keyboardShortcut("q")
         }
         .padding(.horizontal, 14)
         .padding(.top, 12)
@@ -119,12 +137,15 @@ struct MenuView: View {
             TabButton(title: "Updates", count: store.updatableCount, isSelected: tab == .updates) {
                 tab = .updates
             }
+            .keyboardShortcut("1")
             TabButton(title: "Installed", count: nil, isSelected: tab == .installed) {
                 tab = .installed
             }
+            .keyboardShortcut("2")
             TabButton(title: "Discover", count: nil, isSelected: tab == .discover) {
                 tab = .discover
             }
+            .keyboardShortcut("3")
             Spacer()
         }
         .padding(.horizontal, 12)
@@ -133,16 +154,12 @@ struct MenuView: View {
 
     private var footer: some View {
         HStack {
-            if !store.log.isEmpty {
-                Button {
-                    showingOutput.toggle()
-                } label: {
-                    Label(showingOutput ? "Hide output" : "Show output", systemImage: "terminal")
-                }
+            Button {
+                showingOutput.toggle()
+            } label: {
+                Label(showingOutput ? "Hide output" : "Show output", systemImage: "terminal")
             }
             Spacer()
-            Button("Quit") { NSApplication.shared.terminate(nil) }
-                .keyboardShortcut("q")
         }
         .buttonStyle(.plain)
         .font(.system(size: 11))
@@ -227,6 +244,9 @@ private struct TabButton: View {
 
 private struct UpdatesList: View {
     @Environment(UpdateStore.self) private var store
+    @Environment(\.switchTab) private var switchTab
+    @State private var highlighted: String?
+    @FocusState private var focused: Bool
 
     /// Pinned packages can't be upgraded, so they sit at the bottom.
     private var sortedPackages: [OutdatedPackage] {
@@ -236,23 +256,45 @@ private struct UpdatesList: View {
     private var pinnedCount: Int { store.packages.count - store.updatableCount }
 
     var body: some View {
-        if store.packages.isEmpty {
-            emptyState
-        } else {
+        Group {
+            if store.packages.isEmpty {
+                emptyState
+            } else {
+                list
+            }
+        }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focused)
+        // Return updates the highlighted package.
+        .listKeyboardNavigation(sortedPackages.map(\.id), highlighted: $highlighted) { id in
+            guard let package = store.outdatedPackage(id: id), !package.pinned,
+                  !store.upgrading.contains(id) else { return }
+            store.upgrade(package)
+        }
+        .tabSwitching(switchTab)
+        // .task, so it runs after the previous tab gives up focus.
+        .task { focused = true }
+    }
+
+    private var list: some View {
             VStack(spacing: 0) {
                 summary
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(sortedPackages) { package in
-                            UpdateRow(package: package)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(sortedPackages) { package in
+                                UpdateRow(package: package, isHighlighted: highlighted == package.id)
+                                    .id(package.id)
+                            }
                         }
+                        .padding(.bottom, 6)
                     }
-                    .padding(.bottom, 6)
+                    .modifier(ScrollToHighlight(highlighted: highlighted, proxy: proxy))
                 }
                 .frame(maxHeight: 360)
                 .fixedSize(horizontal: false, vertical: true)
             }
-        }
     }
 
     private var summary: some View {
@@ -263,6 +305,8 @@ private struct UpdatesList: View {
             Spacer()
             if store.updatableCount > 0 {
                 Button("Update all") { store.upgradeAll() }
+                    .keyboardShortcut(.return, modifiers: .command)
+                    .help("Update all (⌘↩)")
                     .buttonStyle(.borderedProminent)
                     .buttonBorderShape(.capsule)
                     .controlSize(.small)
@@ -300,6 +344,7 @@ private struct UpdatesList: View {
 private struct UpdateRow: View {
     @Environment(UpdateStore.self) private var store
     let package: OutdatedPackage
+    var isHighlighted = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -316,7 +361,7 @@ private struct UpdateRow: View {
             Spacer()
             trailing
         }
-        .rowHover()
+        .rowHover(highlighted: isHighlighted)
         .contextMenu {
             if package.kind == .formula {
                 Button(package.pinned ? "Unpin" : "Pin current version") {

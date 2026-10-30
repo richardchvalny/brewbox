@@ -15,6 +15,7 @@ struct SettingsView: View {
     @AppStorage(Preferences.Key.showCountInMenuBar) private var showCountInMenuBar = true
     @AppStorage(Preferences.Key.checkAppUpdates) private var checkAppUpdates = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @FocusState private var focused: Bool
 
     /// DatePicker works with dates; the schedule stores minutes after midnight.
     private var checkTime: Binding<Date> {
@@ -34,7 +35,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
-                IconButton(systemImage: "chevron.left", help: "Back", action: onBack)
+                IconButton(systemImage: "chevron.left", help: "Back (Esc)", action: onBack)
                 Text("Settings")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
@@ -106,6 +107,14 @@ struct SettingsView: View {
             .onChange(of: includeCasks) { refresh() }
             .onChange(of: greedy) { refresh() }
         }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focused)
+        .onKeyPress(.escape) { onBack(); return .handled }
+        // Esc while a picker or switch has focus.
+        .onExitCommand(perform: onBack)
+        // .task, so it runs after the view that had focus goes away.
+        .task { focused = true }
     }
 
     private var about: some View {

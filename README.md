@@ -21,6 +21,9 @@ outdated formulae and casks in the background and upgrades them with one click.
 - **Discover** tab: instant search over the whole Homebrew catalog (formulae and casks),
   package detail with homepage and formulae.brew.sh links, one-click install
 - Pin / unpin formulae, open homepage (right-click a row)
+- Works from the keyboard: ↑/↓ move through lists, ↩ opens a package (or updates it on the
+  Updates tab), ←/→ or ⌘1–3 switch tabs, Esc or ← goes back, ⌘R checks, ⌘, opens Settings,
+  ⌘↩ updates all, ⌘Q quits
 - Errors show the failing command and can be copied as plain text or as a ready-made
   prompt for an AI agent (with full output and your macOS/Homebrew versions)
 - Welcome window on first launch that checks for Homebrew and, if it's missing, helps install

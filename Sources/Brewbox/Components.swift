@@ -22,8 +22,9 @@ struct IconButton: View {
     }
 }
 
-/// Native-menu-like hover highlight for list rows.
+/// Native-menu-like hover highlight for list rows; `isHighlighted` marks the keyboard selection.
 struct RowHover: ViewModifier {
+    var isHighlighted = false
     @State private var isHovered = false
 
     func body(content: Content) -> some View {
@@ -32,7 +33,7 @@ struct RowHover: ViewModifier {
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(.primary.opacity(isHovered ? 0.06 : 0))
+                    .fill(isHighlighted ? Color.accentColor.opacity(0.16) : Color.primary.opacity(isHovered ? 0.06 : 0))
             )
             .contentShape(Rectangle())
             .onHover { isHovered = $0 }
@@ -41,7 +42,85 @@ struct RowHover: ViewModifier {
 }
 
 extension View {
-    func rowHover() -> some View { modifier(RowHover()) }
+    func rowHover(highlighted: Bool = false) -> some View { modifier(RowHover(isHighlighted: highlighted)) }
+
+    /// Up and down arrows move `highlighted` through `ids`; Return activates it.
+    func listKeyboardNavigation<ID: Hashable>(
+        _ ids: [ID],
+        highlighted: Binding<ID?>,
+        onActivate: @escaping (ID) -> Void
+    ) -> some View {
+        modifier(ListKeyboardNavigation(ids: ids, highlighted: highlighted, onActivate: onActivate))
+    }
+}
+
+private struct ListKeyboardNavigation<ID: Hashable>: ViewModifier {
+    let ids: [ID]
+    @Binding var highlighted: ID?
+    let onActivate: (ID) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onKeyPress(.downArrow) { move(by: 1) }
+            .onKeyPress(.upArrow) { move(by: -1) }
+            .onKeyPress(.return) {
+                guard let highlighted, ids.contains(highlighted) else { return .ignored }
+                onActivate(highlighted)
+                return .handled
+            }
+    }
+
+    private func move(by offset: Int) -> KeyPress.Result {
+        guard !ids.isEmpty else { return .ignored }
+        let current = highlighted.flatMap { ids.firstIndex(of: $0) }
+        let next = current.map { min(max($0 + offset, 0), ids.count - 1) } ?? (offset > 0 ? 0 : ids.count - 1)
+        highlighted = ids[next]
+        return .handled
+    }
+}
+
+/// Moves to the previous or next tab of the panel.
+struct TabSwitcher: Sendable {
+    var action: @MainActor @Sendable (Int) -> Void = { _ in }
+}
+
+private struct TabSwitcherKey: EnvironmentKey {
+    static let defaultValue = TabSwitcher()
+}
+
+extension EnvironmentValues {
+    var switchTab: TabSwitcher {
+        get { self[TabSwitcherKey.self] }
+        set { self[TabSwitcherKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Left and right arrows switch tabs; `when` lets a search field keep them while it has text.
+    func tabSwitching(_ switcher: TabSwitcher, when enabled: @escaping () -> Bool = { true }) -> some View {
+        onKeyPress(.leftArrow) {
+            guard enabled() else { return .ignored }
+            switcher.action(-1)
+            return .handled
+        }
+        .onKeyPress(.rightArrow) {
+            guard enabled() else { return .ignored }
+            switcher.action(1)
+            return .handled
+        }
+    }
+}
+
+/// Keeps the keyboard-highlighted row of a list in view.
+struct ScrollToHighlight<ID: Hashable>: ViewModifier {
+    let highlighted: ID?
+    let proxy: ScrollViewProxy
+
+    func body(content: Content) -> some View {
+        content.onChange(of: highlighted) { _, id in
+            if let id { proxy.scrollTo(id) }
+        }
+    }
 }
 
 /// Tiny glyph telling formulae (command-line) from casks (apps).
