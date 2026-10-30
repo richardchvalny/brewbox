@@ -28,6 +28,15 @@ outdated formulae and casks in the background and upgrades them with one click.
 - Notifications for new updates, launch at login
 - Optional: include self-updating casks (`--greedy`)
 
+## Install
+
+Download **Brewbox.dmg** from the [latest release](https://github.com/richardchvalny/brewbox/releases/latest)
+and drag Brewbox to Applications, or install (and later update) it from Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/richardchvalny/brewbox/main/scripts/install.sh | bash
+```
+
 ## Requirements
 
 - macOS 14+
@@ -40,6 +49,7 @@ outdated formulae and casks in the background and upgrades them with one click.
 make run       # dev run straight from SwiftPM
 make open      # build "build/Brewbox.app" and open it
 make install   # copy the app to /Applications and launch it
+make release   # build/Brewbox.dmg and .zip for a GitHub release (see Releasing)
 make snapshots # render the panel with sample data to build/snapshots/
 make icon      # redraw the app icon from scripts/make-icon.swift
 ```
@@ -48,6 +58,33 @@ The version lives in `Support/Info.plist` (`CFBundleShortVersionString`) and sho
 Settings along with the author. `make app` sets the build number to the git commit count.
 
 Notifications and launch at login only work from the bundled app.
+
+## Releasing
+
+`make release` builds a universal (Apple silicon + Intel) app into `build/Brewbox.dmg`
+(the website download) and `build/Brewbox.zip` (what `scripts/install.sh` installs),
+prints their SHA-256 and the `gh release create` command that attaches both to a GitHub
+release. The download links and the install script always fetch the latest release.
+
+Bump `CFBundleShortVersionString` in `Support/Info.plist` before each release.
+
+**Free, unnotarized:** `UNSIGNED=1 make release`. The curl install opens without any
+prompt; the downloaded DMG needs **Open Anyway** in System Settings → Privacy & Security
+the first time.
+
+**Signed and notarized** (Apple Developer Program, so the DMG opens without a prompt
+too): plain `make release`, after a one-time setup:
+
+1. Create a **Developer ID Application** certificate (developer.apple.com → Certificates,
+   IDs & Profiles) and install it in your keychain.
+2. Save notarization credentials (Apple ID, team ID and an app-specific password from
+   account.apple.com):
+
+   ```bash
+   xcrun notarytool store-credentials brewbox
+   ```
+
+`SIGN_IDENTITY` and `NOTARY_PROFILE` override the defaults.
 
 ## Layout
 

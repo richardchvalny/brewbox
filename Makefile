@@ -1,6 +1,6 @@
 APP := build/Brewbox.app
 
-.PHONY: run app open install snapshots icon clean
+.PHONY: run app open install release snapshots icon clean
 
 # Quick dev loop (no notifications / launch at login).
 run:
@@ -16,6 +16,10 @@ install: app
 	rm -rf "/Applications/Brewbox.app" "/Applications/Homebrew Toolbox.app"
 	cp -R "$(APP)" /Applications/
 	open "/Applications/Brewbox.app"
+
+# Universal, Developer ID-signed and notarized build/Brewbox.dmg for the website.
+release:
+	./scripts/release.sh
 
 # Render the panel with sample data to build/snapshots/*.png for design review.
 snapshots:
