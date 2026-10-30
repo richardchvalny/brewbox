@@ -14,6 +14,7 @@ enum Preferences {
         static let notifications = "notifications"
         static let showCountInMenuBar = "showCountInMenuBar"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
+        static let checkAppUpdates = "checkAppUpdates"
     }
 
     static let defaultCheckFrequency = CheckFrequency.daily
@@ -45,6 +46,11 @@ enum Preferences {
 
     static var notifications: Bool {
         defaults.object(forKey: Key.notifications) as? Bool ?? true
+    }
+
+    /// Look for new Brewbox releases on GitHub once a day.
+    static var checkAppUpdates: Bool {
+        defaults.object(forKey: Key.checkAppUpdates) as? Bool ?? true
     }
 
     /// Notifications and login items need a real .app bundle; `swift run` has none.

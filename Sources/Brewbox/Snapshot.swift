@@ -17,6 +17,8 @@ enum Snapshot {
         for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
             render(MenuView(initialTab: .updates), store: sampleStore(), appearance: appearance,
                    to: directory.appendingPathComponent("updates-\(name).png"))
+            render(MenuView(initialTab: .updates), store: sampleStore(), updater: AppUpdater(preview: .available(sampleRelease)),
+                   appearance: appearance, to: directory.appendingPathComponent("app-update-\(name).png"))
             render(MenuView(initialTab: .installed), store: sampleStore(), appearance: appearance,
                    to: directory.appendingPathComponent("installed-\(name).png"))
             render(MenuView(initialTab: .updates), store: UpdateStore(preview: [], installed: sampleInstalled),
@@ -51,10 +53,17 @@ enum Snapshot {
         exit(0)
     }
 
-    private static func render(_ view: some View, store: UpdateStore, appearance: NSAppearance.Name, to url: URL) {
+    private static func render(
+        _ view: some View,
+        store: UpdateStore,
+        updater: AppUpdater = AppUpdater(preview: .upToDate),
+        appearance: NSAppearance.Name,
+        to url: URL
+    ) {
         // cacheDisplay skips the window background, and the panel is key while open.
         let content = view
             .environment(store)
+            .environment(updater)
             .environment(\.controlActiveState, .key)
             .background(Color(nsColor: .windowBackgroundColor))
         let hosting = NSHostingView(rootView: content)
@@ -75,6 +84,12 @@ enum Snapshot {
         hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
         try? bitmap.representation(using: .png, properties: [:])?.write(to: url)
     }
+
+    private static let sampleRelease = AppUpdater.Release(
+        version: "0.2.0",
+        downloadURL: URL(string: "https://github.com/richardchvalny/brewbox/releases/download/v0.2.0/Brewbox.zip")!,
+        pageURL: URL(string: "https://github.com/richardchvalny/brewbox/releases/tag/v0.2.0")!
+    )
 
     private static func sampleStore() -> UpdateStore {
         UpdateStore(

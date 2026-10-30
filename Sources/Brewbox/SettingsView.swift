@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(UpdateStore.self) private var store
+    @Environment(AppUpdater.self) private var updater
     let onBack: () -> Void
 
     @AppStorage(Preferences.Key.checkFrequency) private var frequency = Preferences.defaultCheckFrequency
@@ -12,6 +13,7 @@ struct SettingsView: View {
     @AppStorage(Preferences.Key.greedy) private var greedy = false
     @AppStorage(Preferences.Key.notifications) private var notifications = true
     @AppStorage(Preferences.Key.showCountInMenuBar) private var showCountInMenuBar = true
+    @AppStorage(Preferences.Key.checkAppUpdates) private var checkAppUpdates = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     /// DatePicker works with dates; the schedule stores minutes after midnight.
@@ -87,9 +89,12 @@ struct SettingsView: View {
                     }
                 }
 
-
                 Section {
                     about
+                    if updater.isSupported {
+                        AppUpdateRow()
+                        Toggle("Check for new versions daily", isOn: $checkAppUpdates)
+                    }
                 }
             }
             .formStyle(.grouped)

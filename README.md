@@ -26,6 +26,8 @@ outdated formulae and casks in the background and upgrades them with one click.
 - Welcome window on first launch that checks for Homebrew and, if it's missing, helps install
   it (official install script in Terminal, or the official .pkg installer)
 - Notifications for new updates, launch at login
+- Updates itself from GitHub releases: checks daily, one click downloads the new version,
+  swaps it in and restarts
 - Optional: include self-updating casks (`--greedy`)
 
 ## Install
@@ -64,7 +66,10 @@ Notifications and launch at login only work from the bundled app.
 `make release` builds a universal (Apple silicon + Intel) app into `build/Brewbox.dmg`
 (the website download) and `build/Brewbox.zip` (what `scripts/install.sh` installs),
 prints their SHA-256 and the `gh release create` command that attaches both to a GitHub
-release. The download links and the install script always fetch the latest release.
+release. The download links and the install script always fetch the latest release, and
+the app finds it through the GitHub API: it needs the `vX.Y.Z` tag and the `Brewbox.zip`
+asset, compares the tag with its own version and installs the zip in place (same bundle
+ID, and same signing team when the running app has one).
 
 Bump `CFBundleShortVersionString` in `Support/Info.plist` before each release.
 
@@ -93,6 +98,8 @@ too): plain `make release`, after a one-time setup:
 | `BrewService.swift` | Runs `brew` with a clean environment, streams output |
 | `Models.swift` | Parses `brew outdated --json=v2` |
 | `UpdateStore.swift` | State, scheduler, serial command queue, notifications |
+| `AppUpdater.swift` | Checks GitHub releases for a newer Brewbox, installs it and relaunches |
+| `AppUpdateViews.swift` | Update banner in the panel and status row in Settings |
 | `MenuView.swift` | The menu bar panel and Updates tab |
 | `InstalledListView.swift` | Installed tab with search and filters |
 | `Catalog.swift` | Downloads and caches the formulae.brew.sh catalog, ranks search results |

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuView: View {
     @Environment(UpdateStore.self) private var store
+    @Environment(AppUpdater.self) private var updater
     @State private var showingSettings = false
     @State private var showingOutput = false
     @State private var tab: Tab
@@ -64,6 +65,10 @@ struct MenuView: View {
             if showingOutput && !store.log.isEmpty {
                 Divider()
                 OutputView()
+            }
+            if updater.newRelease != nil {
+                Divider()
+                AppUpdateBanner()
             }
             Divider()
             footer

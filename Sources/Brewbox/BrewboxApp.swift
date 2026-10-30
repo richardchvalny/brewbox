@@ -6,6 +6,7 @@ import UserNotifications
 struct BrewboxApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store: UpdateStore
+    @State private var updater = AppUpdater()
 
     init() {
         Snapshot.runIfRequested()
@@ -20,6 +21,7 @@ struct BrewboxApp: App {
         MenuBarExtra {
             MenuView()
                 .environment(store)
+                .environment(updater)
         } label: {
             MenuBarLabel(store: store)
         }
