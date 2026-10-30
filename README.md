@@ -1,4 +1,4 @@
-# Homebrew Toolbox
+# Brewbox
 
 A menu bar app for Homebrew in the spirit of JetBrains Toolbox: it checks for
 outdated formulae and casks in the background and upgrades them with one click.
@@ -34,10 +34,13 @@ outdated formulae and casks in the background and upgrades them with one click.
 
 ```bash
 make run       # dev run straight from SwiftPM
-make open      # build "build/Homebrew Toolbox.app" and open it
+make open      # build "build/Brewbox.app" and open it
 make install   # copy the app to /Applications and launch it
 make snapshots # render the panel with sample data to build/snapshots/
 ```
+
+The version lives in `Support/Info.plist` (`CFBundleShortVersionString`) and shows in
+Settings along with the author. `make app` sets the build number to the git commit count.
 
 Notifications and launch at login only work from the bundled app.
 
@@ -52,8 +55,10 @@ Notifications and launch at login only work from the bundled app.
 | `InstalledListView.swift` | Installed tab with search and filters |
 | `Catalog.swift` | Downloads and caches the formulae.brew.sh catalog, ranks search results |
 | `DiscoverView.swift` | Discover tab, package detail and install |
+| `AppInfo.swift` | Version and credits shown in Settings |
 | `ErrorReport.swift` | Error context and the copy-for-AI prompt |
 | `UpdateSchedule.swift` | Schedule options and next-run calculation |
+| `LegacyMigration.swift` | Moves settings over from the old "Homebrew Toolbox" app |
 | `SettingsView.swift` | In-panel settings |
 
 ## Known limitations

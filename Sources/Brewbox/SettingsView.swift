@@ -87,6 +87,10 @@ struct SettingsView: View {
                     }
                 }
 
+
+                Section {
+                    about
+                }
             }
             .formStyle(.grouped)
             .toggleStyle(.switch)
@@ -97,6 +101,33 @@ struct SettingsView: View {
             .onChange(of: includeCasks) { refresh() }
             .onChange(of: greedy) { refresh() }
         }
+    }
+
+    private var about: some View {
+        HStack(spacing: 12) {
+            Image(nsImage: BubblesIcon.image(hasUpdates: false, size: 28))
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Brewbox \(AppInfo.version)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .textSelection(.enabled)
+                Text("Made by \(AppInfo.author)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                if let brewVersion = store.brewVersion {
+                    Text(brewVersion)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            Spacer()
+            Link(destination: AppInfo.repositoryURL) {
+                Label("GitHub", systemImage: "arrow.up.right.square")
+                    .font(.system(size: 11))
+            }
+            .help(AppInfo.repositoryURL.absoluteString)
+        }
+        .padding(.vertical, 2)
     }
 
     private func refresh() {

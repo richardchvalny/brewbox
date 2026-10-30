@@ -70,7 +70,7 @@ struct MenuView: View {
             Image(nsImage: BubblesIcon.image(hasUpdates: false, frame: store.iconFrame, size: 24))
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Homebrew")
+                Text("Brewbox")
                     .font(.system(size: 13, weight: .semibold))
                 statusLine
                     .font(.system(size: 11))

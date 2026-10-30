@@ -3,12 +3,15 @@ import SwiftUI
 import UserNotifications
 
 @main
-struct HomebrewToolboxApp: App {
+struct BrewboxApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var store = UpdateStore()
+    @State private var store: UpdateStore
 
     init() {
         Snapshot.runIfRequested()
+        // Before the store reads its settings.
+        LegacyMigration.run()
+        _store = State(initialValue: UpdateStore())
     }
 
     var body: some Scene {

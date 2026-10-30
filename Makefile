@@ -1,4 +1,4 @@
-APP := build/Homebrew Toolbox.app
+APP := build/Brewbox.app
 
 .PHONY: run app open install snapshots clean
 
@@ -13,14 +13,14 @@ open: app
 	open "$(APP)"
 
 install: app
-	rm -rf "/Applications/Homebrew Toolbox.app"
+	rm -rf "/Applications/Brewbox.app" "/Applications/Homebrew Toolbox.app"
 	cp -R "$(APP)" /Applications/
-	open "/Applications/Homebrew Toolbox.app"
+	open "/Applications/Brewbox.app"
 
 # Render the panel with sample data to build/snapshots/*.png for design review.
 snapshots:
 	swift build
-	.build/debug/HomebrewToolbox --snapshot build/snapshots
+	.build/debug/Brewbox --snapshot build/snapshots
 
 clean:
 	rm -rf .build build

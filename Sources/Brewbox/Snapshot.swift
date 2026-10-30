@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// `HomebrewToolbox --snapshot <dir>` renders the panel with sample data to PNGs,
+/// `Brewbox --snapshot <dir>` renders the panel with sample data to PNGs,
 /// so the design can be reviewed without clicking through the menu bar.
 @MainActor
 enum Snapshot {

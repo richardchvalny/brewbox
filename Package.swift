@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "HomebrewToolbox",
+    name: "Brewbox",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "HomebrewToolbox",
-            path: "Sources/HomebrewToolbox"
+            name: "Brewbox",
+            path: "Sources/Brewbox"
         )
     ]
 )

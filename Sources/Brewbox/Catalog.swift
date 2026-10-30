@@ -36,7 +36,7 @@ struct CatalogService: Sendable {
 
     private var cacheDirectory: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("HomebrewToolbox", isDirectory: true)
+            .appendingPathComponent("Brewbox", isDirectory: true)
     }
 
     func load(forceRefresh: Bool = false) async throws -> [CatalogPackage] {

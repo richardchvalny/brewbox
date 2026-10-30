@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>local.HomebrewToolbox</string>
+    <string>local.Brewbox</string>
     <key>CFBundleName</key>
-    <string>Homebrew Toolbox</string>
+    <string>Brewbox</string>
     <key>CFBundleDisplayName</key>
-    <string>Homebrew Toolbox</string>
+    <string>Brewbox</string>
     <key>CFBundleExecutable</key>
-    <string>HomebrewToolbox</string>
+    <string>Brewbox</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -20,6 +20,8 @@
     <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>© 2026 Richard Chválny</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>
