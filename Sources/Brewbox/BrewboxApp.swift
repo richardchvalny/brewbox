@@ -11,7 +11,9 @@ struct BrewboxApp: App {
         Snapshot.runIfRequested()
         // Before the store reads its settings.
         LegacyMigration.run()
-        _store = State(initialValue: UpdateStore())
+        let store = UpdateStore()
+        _store = State(initialValue: store)
+        OnboardingWindow.shared.store = store
     }
 
     var body: some Scene {
@@ -45,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        OnboardingWindow.shared.showIfNeeded()
         guard Preferences.isBundled else { return }
         let center = UNUserNotificationCenter.current()
         center.delegate = self

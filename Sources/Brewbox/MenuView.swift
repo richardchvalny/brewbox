@@ -46,15 +46,20 @@ struct MenuView: View {
                     .padding(.horizontal, 12)
                     .padding(.bottom, 8)
             }
-            tabBar
-            Divider()
-            switch tab {
-            case .updates:
-                UpdatesList()
-            case .installed:
-                InstalledListView(initialSelection: installedSelection)
-            case .discover:
-                DiscoverView(initialQuery: discoverQuery, initialSelection: discoverSelection)
+            if store.brew == nil {
+                Divider()
+                HomebrewMissingView()
+            } else {
+                tabBar
+                Divider()
+                switch tab {
+                case .updates:
+                    UpdatesList()
+                case .installed:
+                    InstalledListView(initialSelection: installedSelection)
+                case .discover:
+                    DiscoverView(initialQuery: discoverQuery, initialSelection: discoverSelection)
+                }
             }
             if showingOutput && !store.log.isEmpty {
                 Divider()
@@ -93,7 +98,9 @@ struct MenuView: View {
 
     @ViewBuilder
     private var statusLine: some View {
-        if let activity = store.activity {
+        if store.brew == nil {
+            Text("Homebrew not found")
+        } else if let activity = store.activity {
             Text(activity)
         } else if let lastChecked = store.lastChecked {
             Text("Checked \(lastChecked.formatted(.relative(presentation: .named)))")
@@ -137,6 +144,44 @@ struct MenuView: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
+    }
+}
+
+/// Shown instead of the tabs until Homebrew is installed.
+private struct HomebrewMissingView: View {
+    @Environment(UpdateStore.self) private var store
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "shippingbox.and.arrow.backward")
+                .font(.system(size: 32))
+                .foregroundStyle(.orange)
+                .padding(.bottom, 4)
+            Text("Homebrew isn't installed")
+                .font(.system(size: 13, weight: .semibold))
+            Text("Brewbox works with Homebrew. Install it and Brewbox picks it up automatically.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Set up Homebrew") {
+                OnboardingWindow.shared.show(startingAt: .homebrew)
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            .padding(.top, 6)
+        }
+        .padding(.horizontal, 32)
+        .padding(.vertical, 32)
+        .frame(maxWidth: .infinity)
+        // Also catches installs done outside Brewbox.
+        .task {
+            while store.brew == nil && !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                store.locateBrew()
+            }
+        }
     }
 }
 

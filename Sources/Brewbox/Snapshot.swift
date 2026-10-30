@@ -35,6 +35,15 @@ enum Snapshot {
                    to: directory.appendingPathComponent("error-\(name).png"))
             render(SettingsView {}.frame(width: 340), store: sampleStore(), appearance: appearance,
                    to: directory.appendingPathComponent("settings-\(name).png"))
+            render(MenuView(), store: UpdateStore(preview: [], installed: [], brewInstalled: false),
+                   appearance: appearance, to: directory.appendingPathComponent("no-brew-\(name).png"))
+            for step in OnboardingView.Step.allCases {
+                render(OnboardingView(initialStep: step) {}, store: sampleStore(), appearance: appearance,
+                       to: directory.appendingPathComponent("onboarding-\(step.rawValue)-\(name).png"))
+            }
+            render(OnboardingView(initialStep: .homebrew) {},
+                   store: UpdateStore(preview: [], installed: [], brewInstalled: false), appearance: appearance,
+                   to: directory.appendingPathComponent("onboarding-2-missing-\(name).png"))
             render(MenuBarIconStrip(), store: sampleStore(), appearance: appearance,
                    to: directory.appendingPathComponent("icon-\(name).png"))
         }

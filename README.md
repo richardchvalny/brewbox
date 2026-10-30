@@ -23,6 +23,8 @@ outdated formulae and casks in the background and upgrades them with one click.
 - Pin / unpin formulae, open homepage (right-click a row)
 - Errors show the failing command and can be copied as plain text or as a ready-made
   prompt for an AI agent (with full output and your macOS/Homebrew versions)
+- Welcome window on first launch that checks for Homebrew and, if it's missing, helps install
+  it (official install script in Terminal, or the official .pkg installer)
 - Notifications for new updates, launch at login
 - Optional: include self-updating casks (`--greedy`)
 
@@ -61,6 +63,8 @@ Notifications and launch at login only work from the bundled app.
 | `AppInfo.swift` | Version and credits shown in Settings |
 | `ErrorReport.swift` | Error context and the copy-for-AI prompt |
 | `UpdateSchedule.swift` | Schedule options and next-run calculation |
+| `Onboarding.swift` | First-launch welcome window and Homebrew check |
+| `HomebrewInstaller.swift` | Official Homebrew install options |
 | `LegacyMigration.swift` | Moves settings over from the old "Homebrew Toolbox" app |
 | `SettingsView.swift` | In-panel settings |
 

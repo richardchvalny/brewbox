@@ -13,6 +13,7 @@ enum Preferences {
         static let greedy = "greedy"
         static let notifications = "notifications"
         static let showCountInMenuBar = "showCountInMenuBar"
+        static let hasCompletedOnboarding = "hasCompletedOnboarding"
     }
 
     static let defaultCheckFrequency = CheckFrequency.daily

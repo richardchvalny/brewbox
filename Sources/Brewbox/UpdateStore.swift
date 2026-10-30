@@ -58,7 +58,8 @@ final class UpdateStore {
         Preferences.schedule.nextRun(after: lastScheduledRun, anchor: scheduleAnchor)
     }
 
-    let brew: BrewService?
+    /// nil until Homebrew is installed; `locateBrew()` picks it up afterwards.
+    private(set) var brew: BrewService?
 
     var updatableCount: Int { packages.filter { !$0.pinned }.count }
 
@@ -72,19 +73,27 @@ final class UpdateStore {
     init() {
         scheduleAnchor = Self.loadScheduleAnchor()
         brew = BrewService.locate()
-        if let brew {
-            Task { [weak self] in
-                let version = try? await brew.run(["--version"])
-                self?.brewVersion = version?.split(separator: "\n").first.map(String.init)
-            }
-        } else {
-            error = ErrorReport(
-                title: "Homebrew not found",
-                message: "Homebrew wasn't found in /opt/homebrew or /usr/local.",
-                hint: "Install it from brew.sh, then reopen the app."
-            )
-        }
+        loadBrewVersion()
         startScheduler()
+    }
+
+    /// Looks for Homebrew again, e.g. while the user installs it. Returns whether it's available.
+    @discardableResult
+    func locateBrew() -> Bool {
+        guard brew == nil else { return true }
+        guard let found = BrewService.locate() else { return false }
+        brew = found
+        loadBrewVersion()
+        Task { await check() }
+        return true
+    }
+
+    private func loadBrewVersion() {
+        guard let brew else { return }
+        Task { [weak self] in
+            let version = try? await brew.run(["--version"])
+            self?.brewVersion = version?.split(separator: "\n").first.map(String.init)
+        }
     }
 
     /// Static store for snapshots: no brew, no scheduler.
@@ -93,12 +102,13 @@ final class UpdateStore {
         installed: [InstalledPackage],
         catalog: [CatalogPackage] = [],
         log: String = "",
-        error: ErrorReport? = nil
+        error: ErrorReport? = nil,
+        brewInstalled: Bool = true
     ) {
-        brew = BrewService(brewURL: URL(fileURLWithPath: "/opt/homebrew/bin/brew"))
+        brew = brewInstalled ? BrewService(brewURL: URL(fileURLWithPath: "/opt/homebrew/bin/brew")) : nil
         scheduleAnchor = .now
         self.error = error
-        brewVersion = "Homebrew 7.0.11"
+        brewVersion = brewInstalled ? "Homebrew 7.0.11" : nil
         self.packages = packages
         self.installed = installed
         self.catalog = catalog
