@@ -4,6 +4,9 @@
 #
 # The tag must match CFBundleShortVersionString in Support/Info.plist, since
 # AppUpdater rejects a Brewbox.zip whose version differs from the release's.
+# The release description comes from release-notes/<tag>.md, followed by
+# release-notes/upgrading.md (unless the notes have their own "## Upgrading")
+# and GitHub's Full Changelog link.
 # Builds are unsigned for now (UNSIGNED=1, see scripts/release.sh).
 name: Release
 
@@ -35,6 +38,13 @@ jobs:
               exit 1
           fi
 
+      - name: Check the release notes exist
+        run: |
+          if [[ ! -s "release-notes/$GITHUB_REF_NAME.md" ]]; then
+              echo "::error::Write release-notes/$GITHUB_REF_NAME.md and push it before tagging"
+              exit 1
+          fi
+
       - name: Build Brewbox.dmg and Brewbox.zip
         run: UNSIGNED=1 ./scripts/release.sh
 
@@ -42,5 +52,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          NOTES="$RUNNER_TEMP/notes.md"
+          cat "release-notes/$GITHUB_REF_NAME.md" > "$NOTES"
+          if ! grep -q '^## Upgrading' "$NOTES"; then
+              printf '\n' >> "$NOTES"
+              cat release-notes/upgrading.md >> "$NOTES"
+          fi
           gh release create "$GITHUB_REF_NAME" build/Brewbox.dmg build/Brewbox.zip \
-              --title "Brewbox ${GITHUB_REF_NAME#v}" --generate-notes --verify-tag
+              --title "Brewbox ${GITHUB_REF_NAME#v}" --notes-file "$NOTES" --generate-notes --verify-tag

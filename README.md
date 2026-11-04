@@ -69,14 +69,16 @@ Notifications and launch at login only work from the bundled app.
 
 ### Releasing
 
-Bump `CFBundleShortVersionString` in `Support/Info.plist`, commit, then push a matching tag:
+Bump `CFBundleShortVersionString` in `Support/Info.plist`, write what's new in
+`release-notes/vX.Y.Z.md` (see [release-notes/README.md](release-notes/README.md)), commit,
+then push a matching tag:
 
 ```bash
 git tag v0.2.1 && git push origin v0.2.1
 ```
 
 The Release workflow builds `Brewbox.dmg` and `Brewbox.zip` with `scripts/release.sh` and
-publishes them as a GitHub release; the app's self-updater picks it up from there.
+publishes them as a GitHub release with those notes; the app's self-updater picks it up from there.
 
 ## Known limitations
 
