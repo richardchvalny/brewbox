@@ -1,0 +1,33 @@
+# Builds every push to main and every pull request, so a broken build shows up
+# before it's merged or released.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # bundle.sh uses the commit count as the build number.
+          fetch-depth: 0
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Build
+        run: swift build
+
+      - name: Bundle the app
+        run: ./scripts/bundle.sh
