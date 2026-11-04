@@ -9,23 +9,27 @@ struct MenuView: View {
     private let discoverQuery: String
     private let discoverSelection: CatalogPackage?
     private let installedSelection: CatalogPackage?
+    private let tapSelection: String?
 
     enum Tab {
         case updates
         case installed
         case discover
+        case taps
     }
 
     init(
         initialTab: Tab = .updates,
         discoverQuery: String = "",
         discoverSelection: CatalogPackage? = nil,
-        installedSelection: CatalogPackage? = nil
+        installedSelection: CatalogPackage? = nil,
+        tapSelection: String? = nil
     ) {
         _tab = State(initialValue: initialTab)
         self.discoverQuery = discoverQuery
         self.discoverSelection = discoverSelection
         self.installedSelection = installedSelection
+        self.tapSelection = tapSelection
     }
 
     var body: some View {
@@ -60,6 +64,8 @@ struct MenuView: View {
                     InstalledListView(initialSelection: installedSelection)
                 case .discover:
                     DiscoverView(initialQuery: discoverQuery, initialSelection: discoverSelection)
+                case .taps:
+                    TapsView(initialTap: tapSelection)
                 }
             }
             if showingOutput && !store.log.isEmpty {
@@ -80,7 +86,7 @@ struct MenuView: View {
         .environment(\.switchTab, TabSwitcher(action: switchTab))
     }
 
-    private static let tabs: [Tab] = [.updates, .installed, .discover]
+    private static let tabs: [Tab] = [.updates, .installed, .discover, .taps]
 
     private func switchTab(by offset: Int) {
         guard store.brew != nil, let index = Self.tabs.firstIndex(of: tab) else { return }
@@ -146,6 +152,10 @@ struct MenuView: View {
                 tab = .discover
             }
             .keyboardShortcut("3")
+            TabButton(title: "Taps", count: nil, isSelected: tab == .taps) {
+                tab = .taps
+            }
+            .keyboardShortcut("4")
             Spacer()
         }
         .padding(.horizontal, 12)

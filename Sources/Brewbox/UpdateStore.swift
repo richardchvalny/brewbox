@@ -41,6 +41,22 @@ final class UpdateStore {
     private(set) var uninstalling: Set<String> = []
     private let catalogService = CatalogService()
 
+    /// Taps the user added; nil until first loaded.
+    private(set) var taps: [Tap]?
+    private(set) var isLoadingTaps = false
+    /// Details of every package in those taps, which the catalog doesn't cover.
+    private(set) var tapPackages: [CatalogPackage] = []
+    /// Names of taps being added or removed.
+    private(set) var changingTaps: Set<String> = []
+
+    /// The catalog plus third-party tap packages, for search. A tap package
+    /// shadowed by a same-named default one is left to the Taps tab.
+    var searchablePackages: [CatalogPackage] {
+        guard !tapPackages.isEmpty else { return catalog }
+        let ids = Set(catalog.map(\.id))
+        return catalog + tapPackages.filter { !ids.contains($0.id) }
+    }
+
     var installedIDs: Set<String> { Set(installed.map(\.id)) }
 
     /// When the last scheduled check ran; persisted so the schedule survives relaunches.
@@ -101,6 +117,8 @@ final class UpdateStore {
         preview packages: [OutdatedPackage],
         installed: [InstalledPackage],
         catalog: [CatalogPackage] = [],
+        taps: [Tap]? = nil,
+        tapPackages: [CatalogPackage] = [],
         log: String = "",
         error: ErrorReport? = nil,
         brewInstalled: Bool = true
@@ -112,6 +130,8 @@ final class UpdateStore {
         self.packages = packages
         self.installed = installed
         self.catalog = catalog
+        self.taps = taps
+        self.tapPackages = tapPackages
         self.log = log
         lastChecked = .now.addingTimeInterval(-12 * 60)
     }
@@ -195,7 +215,7 @@ final class UpdateStore {
     func install(_ package: CatalogPackage) {
         guard let brew, !installing.contains(package.id), !installedIDs.contains(package.id) else { return }
         installing.insert(package.id)
-        let arguments = ["install", package.kind == .cask ? "--cask" : "--formula", package.name]
+        let arguments = ["install", package.kind == .cask ? "--cask" : "--formula", package.installName]
 
         enqueue { [self] in
             defer { installing.remove(package.id) }
@@ -235,7 +255,8 @@ final class UpdateStore {
     /// Detail data for an installed package: the catalog entry when there is one,
     /// otherwise what `brew info` reported (packages from third-party taps).
     func catalogPackage(for package: InstalledPackage) -> CatalogPackage {
-        if let entry = catalog.first(where: { $0.id == package.id }) {
+        if let entry = catalog.first(where: { $0.id == package.id })
+            ?? tapPackages.first(where: { $0.id == package.id }) {
             return entry
         }
         return CatalogPackage(
@@ -252,6 +273,96 @@ final class UpdateStore {
             deprecated: false,
             autoUpdates: false
         )
+    }
+
+    // MARK: - Taps
+
+    func loadTaps(force: Bool = false) async {
+        guard let brew, !isLoadingTaps, taps == nil || force else { return }
+        isLoadingTaps = true
+        await enqueue { [self] in
+            defer { isLoadingTaps = false }
+            do {
+                try await refreshTaps(using: brew)
+            } catch {
+                self.error = ErrorReport(title: "Couldn't list taps", error: error)
+            }
+        }.value
+    }
+
+    private func refreshTaps(using brew: BrewService) async throws {
+        let loaded = try Tap.parse(try await brew.run(["tap-info", "--json", "--installed"]))
+        taps = loaded
+        let names = loaded.flatMap(\.qualifiedNames)
+        guard !names.isEmpty else {
+            tapPackages = []
+            return
+        }
+        // One broken formula fails the whole `brew info`; fall back to bare names.
+        if let output = try? await brew.run(["info", "--json=v2"] + names),
+           let packages = try? CatalogPackage.parseInfo(output) {
+            tapPackages = packages
+        } else {
+            tapPackages = loaded.flatMap { tap in
+                tap.formulaNames.map { Self.barePackage($0, kind: .formula, tap: tap.name) }
+                    + tap.caskTokens.map { Self.barePackage($0, kind: .cask, tap: tap.name) }
+            }
+        }
+    }
+
+    private static func barePackage(_ name: String, kind: PackageKind, tap: String) -> CatalogPackage {
+        CatalogPackage(
+            name: name, title: name, kind: kind, version: "?", summary: nil, homepage: nil,
+            license: nil, dependencies: [], caveats: nil, tap: tap, deprecated: false, autoUpdates: false
+        )
+    }
+
+    func packages(in tap: Tap) -> [CatalogPackage] {
+        tapPackages
+            .filter { $0.tap == tap.name }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    /// Adds a tap from "user/repo" or a repository URL. Returns false when the
+    /// input can't be a tap.
+    @discardableResult
+    func addTap(_ input: String) -> Bool {
+        guard let brew, let arguments = Tap.tapArguments(for: input) else { return false }
+        let name = arguments[1]
+        guard !changingTaps.contains(name) else { return true }
+        changingTaps.insert(name)
+
+        enqueue { [self] in
+            defer { changingTaps.remove(name) }
+            activity = "Adding \(name)…"
+            defer { activity = nil }
+            do {
+                try await runLogged(arguments, using: brew)
+            } catch {
+                self.error = ErrorReport(title: "Adding \(name) failed", error: error)
+            }
+            try? await refreshTaps(using: brew)
+        }
+        return true
+    }
+
+    /// brew refuses to untap while packages from the tap are installed; that
+    /// error is shown as-is.
+    func removeTap(_ tap: Tap) {
+        guard let brew, !changingTaps.contains(tap.name) else { return }
+        changingTaps.insert(tap.name)
+
+        enqueue { [self] in
+            defer { changingTaps.remove(tap.name) }
+            activity = "Removing \(tap.name)…"
+            defer { activity = nil }
+            do {
+                try await runLogged(["untap", tap.name], using: brew)
+            } catch {
+                self.error = ErrorReport(title: "Removing \(tap.name) failed", error: error)
+            }
+            try? await refreshTaps(using: brew)
+        }
     }
 
     /// Keeps the Installed tab current after upgrades, without loading it eagerly.

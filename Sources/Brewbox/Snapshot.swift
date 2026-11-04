@@ -33,6 +33,12 @@ enum Snapshot {
                    appearance: appearance, to: directory.appendingPathComponent("discover-installed-\(name).png"))
             render(MenuView(initialTab: .installed, installedSelection: sampleCatalog[2]), store: sampleStore(),
                    appearance: appearance, to: directory.appendingPathComponent("installed-detail-\(name).png"))
+            render(MenuView(initialTab: .taps), store: sampleStore(), appearance: appearance,
+                   to: directory.appendingPathComponent("taps-\(name).png"))
+            render(MenuView(initialTab: .taps), store: UpdateStore(preview: [], installed: sampleInstalled, taps: []),
+                   appearance: appearance, to: directory.appendingPathComponent("taps-empty-\(name).png"))
+            render(MenuView(initialTab: .taps, tapSelection: "nikitabobko/tap"), store: sampleStore(),
+                   appearance: appearance, to: directory.appendingPathComponent("taps-detail-\(name).png"))
             render(MenuView(initialTab: .updates), store: errorStore(), appearance: appearance,
                    to: directory.appendingPathComponent("error-\(name).png"))
             render(SettingsView {}.frame(width: 340), store: sampleStore(), appearance: appearance,
@@ -103,6 +109,8 @@ enum Snapshot {
             ],
             installed: sampleInstalled,
             catalog: sampleCatalog,
+            taps: sampleTaps,
+            tapPackages: sampleTapPackages,
             log: "$ brew upgrade --formula gh\n==> Upgrading gh\n  2.103.3 -> 2.104.0\n==> Pouring gh--2.104.0.arm64_tahoe.bottle.tar.gz\n🍺  /opt/homebrew/Cellar/gh/2.104.0: 221 files, 58.1MB\n"
         )
     }
@@ -142,6 +150,23 @@ enum Snapshot {
               homepage: URL(string: "https://www.rabbitmq.com"), license: "MPL-2.0",
               dependencies: ["erlang"], caveats: "Management UI: http://localhost:15672", tap: "homebrew/core",
               deprecated: false, autoUpdates: false),
+    ]
+
+    private static let sampleTaps: [Tap] = [
+        Tap(name: "nikitabobko/tap", remote: "https://github.com/nikitabobko/homebrew-tap",
+            formulaNames: [], caskTokens: ["aerospace"]),
+        Tap(name: "oven-sh/bun", remote: "https://github.com/oven-sh/homebrew-bun",
+            formulaNames: ["bun"], caskTokens: []),
+    ]
+
+    private static let sampleTapPackages: [CatalogPackage] = [
+        .init(name: "aerospace", title: "AeroSpace", kind: .cask, version: "0.20.2-Beta",
+              summary: "i3-like tiling window manager", homepage: URL(string: "https://github.com/nikitabobko/AeroSpace"),
+              license: nil, dependencies: [], caveats: nil, tap: "nikitabobko/tap", deprecated: false, autoUpdates: false),
+        .init(name: "bun", title: "bun", kind: .formula, version: "1.3.1",
+              summary: "Incredibly fast JavaScript runtime, bundler, transpiler and package manager",
+              homepage: URL(string: "https://bun.sh"), license: "MIT", dependencies: [], caveats: nil,
+              tap: "oven-sh/bun", deprecated: false, autoUpdates: false),
     ]
 
     private static let sampleInstalled: [InstalledPackage] = [

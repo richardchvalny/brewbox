@@ -34,14 +34,15 @@ struct DiscoverView: View {
             if store.installed.isEmpty {
                 await store.loadInstalled()
             }
+            await store.loadTaps()
         }
         // Debounced so typing stays smooth over ~16k packages.
-        .task(id: SearchKey(query: query, catalogSize: store.catalog.count)) {
+        .task(id: SearchKey(query: query, catalogSize: store.searchablePackages.count)) {
             if !results.isEmpty || query.isEmpty {
                 try? await Task.sleep(for: .milliseconds(120))
             }
             guard !Task.isCancelled else { return }
-            results = store.catalog.search(query)
+            results = store.searchablePackages.search(query)
         }
     }
 
@@ -143,7 +144,7 @@ struct DiscoverView: View {
                 .padding(.bottom, 4)
             Text("Find something new to brew")
                 .font(.system(size: 13, weight: .medium))
-            Text("Search \(store.catalog.count.formatted()) formulae and casks.")
+            Text("Search \(store.searchablePackages.count.formatted()) formulae and casks.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             HStack(spacing: 6) {
@@ -163,10 +164,12 @@ struct DiscoverView: View {
     }
 }
 
-private struct DiscoverRow: View {
+struct DiscoverRow: View {
     let package: CatalogPackage
     let isInstalled: Bool
     var isHighlighted = false
+    /// Off inside a tap's own list, where it would repeat on every row.
+    var showsTap = true
     let onSelect: () -> Void
 
     var body: some View {
@@ -182,6 +185,12 @@ private struct DiscoverRow: View {
                             Text("deprecated")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.orange)
+                        }
+                        if showsTap, package.isThirdParty, let tap = package.tap {
+                            Text(tap)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
                         }
                     }
                     HStack(spacing: 6) {
@@ -322,8 +331,10 @@ struct PackageDetailView: View {
                     Label(homepage.host() ?? "Homepage", systemImage: "globe")
                 }
             }
-            Link(destination: package.brewPageURL) {
-                Label("formulae.brew.sh", systemImage: "arrow.up.right.square")
+            if let brewPageURL = package.brewPageURL {
+                Link(destination: brewPageURL) {
+                    Label("formulae.brew.sh", systemImage: "arrow.up.right.square")
+                }
             }
         }
         .font(.system(size: 11))

@@ -19,12 +19,38 @@ struct CatalogPackage: Identifiable, Hashable, Sendable {
 
     var id: String { "\(kind.rawValue):\(name)" }
 
-    var brewPageURL: URL {
-        URL(string: "https://formulae.brew.sh/\(kind.rawValue)/\(name)")!
+    /// From a tap the user added rather than homebrew/core or homebrew/cask.
+    var isThirdParty: Bool {
+        guard let tap else { return false }
+        return !Tap.defaultNames.contains(tap)
+    }
+
+    /// The fully qualified "user/repo/name" for third-party packages, so brew
+    /// can't pick a same-named package from the default taps.
+    var installName: String {
+        isThirdParty ? "\(tap!)/\(name)" : name
+    }
+
+    /// nil for third-party packages, which formulae.brew.sh doesn't list.
+    var brewPageURL: URL? {
+        isThirdParty ? nil : URL(string: "https://formulae.brew.sh/\(kind.rawValue)/\(name)")
     }
 
     var installCommand: String {
-        kind == .cask ? "brew install --cask \(name)" : "brew install \(name)"
+        kind == .cask ? "brew install --cask \(installName)" : "brew install \(installName)"
+    }
+}
+
+extension CatalogPackage {
+    /// Parses `brew info --json=v2 <names>`, which uses the catalog's entry format.
+    static func parseInfo(_ json: String) throws -> [CatalogPackage] {
+        let response = try JSONDecoder().decode(InfoEntries.self, from: Data(json.utf8))
+        return response.formulae.map(\.package) + response.casks.map(\.package)
+    }
+
+    private struct InfoEntries: Decodable {
+        let formulae: [FormulaEntry]
+        let casks: [CaskEntry]
     }
 }
 
