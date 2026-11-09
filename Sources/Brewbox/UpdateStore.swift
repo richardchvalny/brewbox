@@ -293,21 +293,29 @@ final class UpdateStore {
     private func refreshTaps(using brew: BrewService) async throws {
         let loaded = try Tap.parse(try await brew.run(["tap-info", "--json", "--installed"]))
         taps = loaded
-        let names = loaded.flatMap(\.qualifiedNames)
-        guard !names.isEmpty else {
-            tapPackages = []
-            return
+        // Homebrew 7 refuses to load anything from an untrusted tap, and one such
+        // name fails the whole `brew info`, so ask only about trusted packages:
+        // those in trusted taps, plus ones trusted one by one (`brew trust --formula`).
+        let trustedNames = loaded.contains(where: { !$0.trusted })
+            ? ((try? await brew.run(["trust", "--json=v1"])).flatMap(TrustList.parse) ?? [])
+            : []
+        let names = loaded.flatMap { tap in
+            tap.qualifiedNames.filter { tap.trusted || trustedNames.contains($0) }
         }
+        var packages: [CatalogPackage] = []
         // One broken formula fails the whole `brew info`; fall back to bare names.
-        if let output = try? await brew.run(["info", "--json=v2"] + names),
-           let packages = try? CatalogPackage.parseInfo(output) {
-            tapPackages = packages
-        } else {
-            tapPackages = loaded.flatMap { tap in
-                tap.formulaNames.map { Self.barePackage($0, kind: .formula, tap: tap.name) }
-                    + tap.caskTokens.map { Self.barePackage($0, kind: .cask, tap: tap.name) }
-            }
+        if !names.isEmpty,
+           let output = try? await brew.run(["info", "--json=v2"] + names),
+           let parsed = try? CatalogPackage.parseInfo(output) {
+            packages = parsed
         }
+        let described = Set(packages.map(\.id))
+        packages += loaded.flatMap { tap in
+            tap.formulaNames.map { Self.barePackage($0, kind: .formula, tap: tap.name) }
+                + tap.caskTokens.map { Self.barePackage($0, kind: .cask, tap: tap.name) }
+        }
+        .filter { !described.contains($0.id) }
+        tapPackages = packages
     }
 
     private static func barePackage(_ name: String, kind: PackageKind, tap: String) -> CatalogPackage {
@@ -340,10 +348,41 @@ final class UpdateStore {
                 try await runLogged(arguments, using: brew)
             } catch {
                 self.error = ErrorReport(title: "Adding \(name) failed", error: error)
+                try? await refreshTaps(using: brew)
+                return
+            }
+            try? await refreshTaps(using: brew)
+            // A project's own repository (github.com/user/tool) clones fine but
+            // isn't a tap. Don't leave an empty one behind.
+            if let added = taps?.first(where: { $0.name == name }), added.packageCount == 0 {
+                try? await runLogged(["untap", name], using: brew)
+                try? await refreshTaps(using: brew)
+                self.error = ErrorReport(
+                    title: "\(name) isn't a tap",
+                    message: "The repository has no formulae or casks, so there's nothing to install from it.",
+                    hint: "If you pasted a project's own repository, look in its README for the Homebrew install line (like \"brew tap user/tap && brew install tool\") and paste that instead."
+                )
+            }
+        }
+        return true
+    }
+
+    /// Lets Homebrew load the tap's packages (Homebrew 7+ refuses until then).
+    func trustTap(_ tap: Tap) {
+        guard let brew, !changingTaps.contains(tap.name) else { return }
+        changingTaps.insert(tap.name)
+
+        enqueue { [self] in
+            defer { changingTaps.remove(tap.name) }
+            activity = "Trusting \(tap.name)…"
+            defer { activity = nil }
+            do {
+                try await runLogged(["trust", "--tap", tap.name], using: brew)
+            } catch {
+                self.error = ErrorReport(title: "Trusting \(tap.name) failed", error: error)
             }
             try? await refreshTaps(using: brew)
         }
-        return true
     }
 
     /// brew refuses to untap while packages from the tap are installed; that

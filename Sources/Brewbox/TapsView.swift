@@ -160,10 +160,16 @@ private struct TapRow: View {
                     Text(tap.name)
                         .font(.system(size: 13, weight: .medium))
                         .lineLimit(1)
-                    Text(tapSummary(tap))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Text(tapSummary(tap))
+                            .foregroundStyle(.secondary)
+                        if !tap.trusted {
+                            Text("· Not trusted")
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .font(.system(size: 11))
+                    .lineLimit(1)
                 }
                 Spacer(minLength: 4)
                 Image(systemName: "chevron.right")
@@ -232,6 +238,10 @@ private struct TapDetailView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
 
+            if !tap.trusted {
+                trustBanner
+            }
+
             Group {
                 if packages.isEmpty {
                     Text(tap.packageCount == 0
@@ -264,7 +274,7 @@ private struct TapDetailView: View {
                     }
                 }
             }
-            .frame(height: 288)
+            .frame(height: tap.trusted ? 288 : 224)
 
             Divider()
             actionBar
@@ -280,13 +290,39 @@ private struct TapDetailView: View {
         .task { focused = true }
     }
 
+    private var trustBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.shield")
+                .font(.system(size: 15))
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Homebrew doesn't trust this tap yet")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("Until you trust it, Homebrew won't install or update its packages. Only trust taps from people you trust.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 4)
+            Button("Trust") { store.trustTap(tap) }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .disabled(isChanging)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.orange.opacity(0.1)))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+    }
+
     @ViewBuilder
     private var actionBar: some View {
         Group {
             if isChanging {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Removing…")
+                    Text(tap.trusted ? "Removing…" : "Working…")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                     Spacer()

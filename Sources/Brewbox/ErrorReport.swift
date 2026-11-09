@@ -31,6 +31,9 @@ struct ErrorReport: Identifiable, Sendable {
         if text.contains("sudo") || text.contains("password") {
             hint = "This package needs an administrator password, so run the command in Terminal."
         }
+        if text.contains("untrusted tap") {
+            hint = "Homebrew only loads packages from taps you trust. Open the tap on the Taps tab and choose Trust."
+        }
     }
 
     /// The error as plain text, for a bug report or a chat.

@@ -20,9 +20,10 @@ outdated formulae and casks in the background and upgrades them with one click.
   for its details and to uninstall it (with confirmation)
 - **Discover** tab: instant search over the whole Homebrew catalog (formulae and casks),
   package detail with homepage and formulae.brew.sh links, one-click install
-- **Taps** tab: add a third-party tap by `user/repo` or by pasting its repository URL,
-  browse and install its formulae and casks, remove it again; tapped packages also show up
-  in Discover and get updates like any other
+- **Taps** tab: add a third-party tap by `user/repo`, its repository URL, or the
+  `brew tap … && brew install …` line from a project's README; trust it (Homebrew 7+ won't
+  load packages from untrusted taps), browse and install its formulae and casks, remove it
+  again; tapped packages also show up in Discover and get updates like any other
 - Pin / unpin formulae, open homepage (right-click a row)
 - Works from the keyboard: ↑/↓ move through lists, ↩ opens a package (or updates it on the
   Updates tab), ←/→ or ⌘1–4 switch tabs, Esc or ← goes back, ⌘R checks, ⌘, opens Settings,

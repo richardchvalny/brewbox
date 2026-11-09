@@ -113,6 +113,9 @@ struct Tap: Identifiable, Hashable, Sendable {
     /// Short formula names and cask tokens, without the tap prefix.
     let formulaNames: [String]
     let caskTokens: [String]
+    /// Homebrew 7 refuses to load packages from a tap until it's trusted
+    /// (`brew trust`). Older versions trust every tap.
+    var trusted = true
 
     var id: String { name }
     var packageCount: Int { formulaNames.count + caskTokens.count }
@@ -144,21 +147,66 @@ extension Tap {
                     name: entry.name,
                     remote: entry.remote,
                     formulaNames: (entry.formulaNames ?? []).map(short).sorted(),
-                    caskTokens: (entry.caskTokens ?? []).map(short).sorted()
+                    caskTokens: (entry.caskTokens ?? []).map(short).sorted(),
+                    trusted: entry.trusted ?? true
                 )
             }
             .sorted { $0.name < $1.name }
     }
 
     /// Turns what the user typed or pasted into `brew tap` arguments: "user/repo",
-    /// "brew tap user/repo", "user/repo/package", or a git URL. Returns nil when
-    /// it's none of those.
+    /// "brew tap user/repo", "user/repo/package", or a git URL. Install lines copied
+    /// from a README work too, e.g. "brew tap user/tap && brew install tool".
+    /// Returns nil when it's none of those.
     static func tapArguments(for input: String) -> [String]? {
-        var text = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        for prefix in ["brew tap ", "brew install --cask ", "brew install "] where text.hasPrefix(prefix) {
-            text = String(text.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+        let commands = input
+            .replacingOccurrences(of: "&&", with: "\n")
+            .split(whereSeparator: { ";|\n".contains($0) })
+            .map { command in
+                // Drop a pasted shell prompt and trailing comments.
+                var text = command.trimmingCharacters(in: .whitespaces)
+                if text.hasPrefix("$ ") { text = String(text.dropFirst(2)) }
+                if let hash = text.range(of: " #") { text = String(text[..<hash.lowerBound]) }
+                return text.split(separator: " ").map(String.init)
+            }
+            .filter { !$0.isEmpty }
+        // An explicit `brew tap` wins over the install lines around it.
+        if let tap = commands.first(where: { $0.starts(with: ["brew", "tap"]) }) {
+            return tapArguments(forWords: Array(tap.dropFirst(2)))
         }
-        guard !text.isEmpty, !text.contains(" ") else { return nil }
+        for words in commands {
+            if words.starts(with: ["brew", "install"]) {
+                if let arguments = tapArguments(forWords: Array(words.dropFirst(2))) { return arguments }
+            } else if commands.count == 1 {
+                return tapArguments(forWords: words)
+            }
+        }
+        return nil
+    }
+
+    /// `brew tap` arguments from the words after "brew tap" or "brew install",
+    /// skipping flags like --cask.
+    private static func tapArguments(forWords words: [String]) -> [String]? {
+        let operands = words.filter { !$0.hasPrefix("-") }
+        // "brew tap user/repo URL" names the remote explicitly.
+        if operands.count == 2, let name = parseTapName(operands[0]), operands[1].contains("://") || operands[1].hasPrefix("git@") {
+            return ["tap", name, operands[1]]
+        }
+        // "brew install user/repo/tool other" taps the first qualified name.
+        for operand in operands {
+            if let arguments = tapArguments(forOperand: operand) { return arguments }
+        }
+        return nil
+    }
+
+    private static func parseTapName(_ text: String) -> String? {
+        let parts = text.split(separator: "/").map(String.init)
+        guard (2...3).contains(parts.count), parts.allSatisfy(isValidComponent) else { return nil }
+        return "\(parts[0])/\(parts[1])".lowercased()
+    }
+
+    private static func tapArguments(forOperand text: String) -> [String]? {
+        guard !text.isEmpty else { return nil }
 
         if text.contains("://") || text.hasPrefix("git@") || text.hasPrefix("github.com/") {
             // The repository path, after "host/" or, for scp-style URLs, "host:".
@@ -181,9 +229,7 @@ extension Tap {
             return ["tap", "\(user)/\(lowered)", url]
         }
 
-        let parts = text.split(separator: "/").map(String.init)
-        guard (2...3).contains(parts.count), parts.allSatisfy(isValidComponent) else { return nil }
-        return ["tap", "\(parts[0])/\(parts[1])".lowercased()]
+        return parseTapName(text).map { ["tap", $0] }
     }
 
     private static func isValidComponent(_ text: String) -> Bool {
@@ -194,14 +240,27 @@ extension Tap {
         let name: String
         let remote: String?
         let installed: Bool
+        let trusted: Bool?
         let formulaNames: [String]?
         let caskTokens: [String]?
 
         enum CodingKeys: String, CodingKey {
-            case name, remote, installed
+            case name, remote, installed, trusted
             case formulaNames = "formula_names"
             case caskTokens = "cask_tokens"
         }
+    }
+}
+
+/// `brew trust --json=v1`: the packages trusted one by one, as qualified names.
+enum TrustList {
+    static func parse(_ json: String) -> Set<String>? {
+        struct Entries: Decodable {
+            let formulae: [String]?
+            let casks: [String]?
+        }
+        guard let entries = try? JSONDecoder().decode(Entries.self, from: Data(json.utf8)) else { return nil }
+        return Set((entries.formulae ?? []) + (entries.casks ?? []))
     }
 }
 
