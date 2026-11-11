@@ -74,7 +74,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         guard Preferences.isBundled else { return }
         let center = UNUserNotificationCenter.current()
         center.delegate = self
-        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        // The async variant avoids a MainActor-isolated completion handler, which
+        // UNUserNotificationCenter calls on a background queue and Swift 6 traps on.
+        Task { _ = try? await center.requestAuthorization(options: [.alert, .sound]) }
     }
 
     nonisolated func userNotificationCenter(
