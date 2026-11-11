@@ -41,6 +41,7 @@ struct MenuView: View {
             }
         }
         .frame(width: 340)
+        .fitWindowToContent()
     }
 
     private var mainContent: some View {
